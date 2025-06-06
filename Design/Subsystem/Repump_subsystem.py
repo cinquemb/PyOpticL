@@ -42,4 +42,4 @@ def repump_subsystem_ECDL(x=0, y=0, angle=0, thumbscrews=True, littrow_angle = l
 if __name__ == "__main__":
     repump_subsystem_ECDL(x = 10)
     repump_subsystem_ECDL_mirrored(x = 0)
-    layout.redraw()
+    #layout.redraw()
