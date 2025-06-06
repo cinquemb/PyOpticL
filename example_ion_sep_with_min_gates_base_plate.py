@@ -29,10 +29,10 @@ from modular_sourcebox import sourcebox
 App.ActiveDocument.openTransaction("Batch Object Creation")
 
 # Baseplate constants
-base_dx = 6 * layout.inch
-base_dy = 6 * layout.inch
+base_dx = 12 * layout.inch
+base_dy = 12 * layout.inch
 base_dz = layout.inch
-gap = layout.inch / 8
+gap = layout.inch / 4
 
 # Mount hole coordinates
 mount_holes = [(0, 0), (0, 5), (5, 0), (5, 5)]
@@ -266,30 +266,35 @@ def repump_subsystem_ECDL_mirrored(baseplate, beam=None, x=4, y=0, angle=0, thum
 def isotope_separation_baseplate(x=0, y=0, angle=0):
     baseplate = layout.baseplate(base_dx, base_dy, base_dz, x=x, y=y, angle=angle,
                                  gap=gap, mount_holes=mount_holes)
-
+    print(f"Baseplate dimensions: dx={base_dx}, dy={base_dy}, dz={base_dz}", flush=True)
     # SHG for 294 nm from 588 nm (for Ga-68⁺ cooling)
     beam_588nm = baseplate.add_beam_path(x=0, y=input_y_588nm, angle=layout.cardinal['right'])
-    baseplate.place_element_along_beam("SHG 588nm to 294nm", optomech.cube_splitter, beam_588nm,
+    print(f"Beam_588nm: Position={beam_588nm.Placement.Base}", flush=True)
+    shg_element = baseplate.place_element_along_beam("SHG 588nm to 294nm", optomech.cube_splitter, beam_588nm,
                                       beam_index=0b1, distance=0.5 * layout.inch, angle=layout.cardinal['right'],
                                       mount_type=optomech.skate_mount)  # Placeholder for BBO crystal
+    print(f"SHG 588nm to 294nm: Position={shg_element.Placement.Base}", flush=True)
     beam_294nm = baseplate.add_beam_path(x=0.5 * layout.inch, y=input_y_588nm, angle=layout.cardinal['right'])
+    print(f"Beam_294nm: Position={beam_294nm.Placement.Base}", flush=True)
 
     # Ga-68⁺ cooling at 294 nm using beam_588nm (post-SHG)
     beam_294nm = laser_cooling_subsystem(baseplate, ion_trap_x=3 * layout.inch, ion_trap_y=3 * layout.inch,
                                         thumbscrews=True, littrow_angle=littrow_angle_294nm, beam_path=beam_294nm)  # Ga-68⁺ cooling
-    '''
+    print(f"Beam_294nm after cooling: Position={beam_294nm.Placement.Base}", flush=True)
+    #'''
     # Add photoionization for Ca⁺ at 422 nm, TODO: NEED TO SOURCE 422NM LASER
     #beam_422nm = baseplate.add_beam_path(x, y + input_y_422nm, angle=layout.cardinal['right'])
     #PI_subsystem_ECDL(baseplate, x=x + gap + 1.5 * layout.inch, y=y + input_y_422nm, thumbscrews=True, littrow_angle=littrow_angle_422nm)  # Ca⁺ photoionization
 
     # SHG for 866 nm from 850 nm (for Ca⁺ repumping)
     beam_866nm = generate_866nm_subsystem(baseplate)
+    print(f"Beam_866nm after generation: Position={beam_866nm.Placement.Base}", flush=True)
     # Ca⁺ repumping at 866 nm
     beam_866nm = repump_subsystem_ECDL_mirrored(baseplate, beam=beam_866nm, x=gap + 0.5 * layout.inch, y=input_y_850nm, thumbscrews=True,
                               littrow_angle=littrow_angle_866nm)  # Ca⁺ repumping
     print(f"Beam_866nm after repump_subsystem: Position={beam_866nm.Placement.Base}")
 
-
+    '''
     # Add subsystems
     
 
@@ -300,7 +305,7 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
     
 
     # Ga-68⁺ repumping at 403 nm
-    beam_403nm = repump_subsystem_ECDL_mirrored(baseplate, x=gap + 0.5 * layout.inch, y=input_y_405nm_2, thumbscrews=True,
+    beam_403nm = repump_subsystem_ECDL_mirrored(baseplate, beam=None, x=gap + 0.5 * layout.inch, y=input_y_405nm_2, thumbscrews=True,
                               littrow_angle=littrow_angle_403nm)  # Ga-68⁺ repumping
 
     # Add AOMs using custom component (for beam modulation)
