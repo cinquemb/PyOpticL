@@ -2890,6 +2890,7 @@ class surface_adapter_wide:
         outer_thickness (float) : The thickness of the walls around the bolt holes
     '''
     type = 'Part::FeaturePython'
+
     def __init__(self, obj, drill=True, mount_hole_dy=20, adapter_height=8, outer_thickness=2):
         obj.Proxy = self
         ViewProvider(obj.ViewObject)
@@ -2898,6 +2899,8 @@ class surface_adapter_wide:
         obj.addProperty('App::PropertyLength', 'MountHoleDistance').MountHoleDistance = mount_hole_dy
         obj.addProperty('App::PropertyLength', 'AdapterHeight').AdapterHeight = adapter_height
         obj.addProperty('App::PropertyLength', 'OuterThickness').OuterThickness = outer_thickness
+        if not hasattr(obj, 'Shape'):
+            obj.addProperty('Part::PropertyPartShape', 'Shape', 'Base', 'Shape of the object')
         obj.addProperty('Part::PropertyPartShape', 'DrillPart')
 
         obj.ViewObject.ShapeColor = adapter_color
@@ -2905,28 +2908,61 @@ class surface_adapter_wide:
         self.drill_tolerance = 1
 
     def execute(self, obj):
-        dx = bolt_8_32['head_dia']+obj.OuterThickness.Value*2
-        dy = dx+obj.MountHoleDistance.Value
-        dz = obj.AdapterHeight.Value
+        try:
+            dx = bolt_8_32['head_dia'] + obj.OuterThickness.Value * 2
+            dy = dx + obj.MountHoleDistance.Value
+            dz = obj.AdapterHeight.Value
 
-        part = _custom_box(dx=dx, dy=dy, dz=dz,
-                           x=0, y=0, z=0, dir=(0, 0, -1),
-                           fillet=5)
-        part = part.cut(_custom_cylinder(dia=bolt_8_32['clear_dia'], dz=dz,
-                                         head_dia=bolt_8_32['head_dia'], head_dz=bolt_8_32['head_dz'],
-                                         x=0, y=0, z=-dz, dir=(0,0,1)))
-        for i in [-1, 1]:
-            part = part.cut(_custom_cylinder(dia=bolt_8_32['clear_dia'], dz=dz,
-                                             head_dia=bolt_8_32['head_dia'], head_dz=bolt_8_32['head_dz'],
-                                             x=0, y=i*obj.MountHoleDistance.Value/2, z=0))
-        obj.Shape = part
+            # Create base shape
+            part = _custom_box(dx=dx, dy=dy, dz=dz,
+                               x=0, y=0, z=0, dir=(0, 0, -1),
+                               fillet=5)  # Fillet can cause complexity; consider reducing if issues persist
 
-        part = _bounding_box(obj, self.drill_tolerance, 6)
-        for i in [-1, 1]:
-            part = part.fuse(_custom_cylinder(dia=bolt_8_32['tap_dia'], dz=drill_depth,
-                                              x=0, y=i*obj.MountHoleDistance.Value/2, z=0))
-        part.Placement = obj.Placement
-        obj.DrillPart = part
+            # Cut central hole
+            central_hole = _custom_cylinder(dia=bolt_8_32['clear_dia'], dz=dz,
+                                            head_dia=bolt_8_32['head_dia'], head_dz=bolt_8_32['head_dz'],
+                                            x=0, y=0, z=-dz, dir=(0, 0, 1))
+            part = part.cut(central_hole)
+
+            # Cut mounting holes
+            for i in [-1, 1]:
+                hole = _custom_cylinder(dia=bolt_8_32['clear_dia'], dz=dz,
+                                        head_dia=bolt_8_32['head_dia'], head_dz=bolt_8_32['head_dz'],
+                                        x=0, y=i * obj.MountHoleDistance.Value / 2, z=0)
+                part = part.cut(hole)
+
+            # Validate and assign shape
+            if not hasattr(obj, 'Shape'):
+                obj.addProperty('Part::PropertyPartShape', 'Shape', 'Base', 'Shape of the object')
+            part = Part.fix(part, 0.1)  # Attempt to fix invalid geometry
+            if not part.isValid():
+                raise ValueError("Generated shape is invalid")
+            obj.Shape = part
+
+            # Create drill part if needed
+            if obj.Drill:
+                drill_part = _bounding_box(obj, self.drill_tolerance, 6)
+                for i in [-1, 1]:
+                    drill_hole = _custom_cylinder(dia=bolt_8_32['tap_dia'], dz=drill_depth,
+                                                  x=0, y=i * obj.MountHoleDistance.Value / 2, z=0)
+                    drill_part = drill_part.fuse(drill_hole)
+                drill_part.Placement = obj.Placement  # Avoid modifying Placement if possible
+                obj.DrillPart = drill_part
+            else:
+                obj.DrillPart = None
+
+        except Exception as e:
+            App.Console.PrintError(f"Error in surface_adapter_wide.execute: {str(e)}\n")
+            # Fallback to a simple box if shape generation fails
+            if not hasattr(obj, 'Shape'):
+                obj.addProperty('Part::PropertyPartShape', 'Shape', 'Base', 'Shape of the object')
+            obj.Shape = Part.makeBox(dx, dy, dz)
+
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__ = state
 
 #this is a square hollow
 class square_hollow:
