@@ -65,10 +65,10 @@ gap = layout.inch / 4
 
 # Mount hole coordinates (updated for 12x12 inch baseplate)
 mount_holes = [
-    (0.5 * layout.inch, 0.5 * layout.inch),  # Bottom-left
-    (0.5 * layout.inch, 11.5 * layout.inch),  # Top-left
-    (11.5 * layout.inch, 0.5 * layout.inch),  # Bottom-right
-    (11.5 * layout.inch, 11.5 * layout.inch)  # Top-right
+    (0 * layout.inch, 0 * layout.inch),  # Bottom-left
+    (0 * layout.inch, 11 * layout.inch),  # Top-left
+    (11 * layout.inch, 0 * layout.inch),  # Bottom-right
+    (11 * layout.inch, 11 * layout.inch)  # Top-right
 ]
 
 # Y-coordinates for laser beam inputs and SHG/tuning stages
@@ -219,12 +219,11 @@ def tune_and_shg_422nm(baseplate, x=1 * layout.inch, y=input_y_850nm_2, angle=la
 
     shg_crystal = baseplate.place_element_along_beam("SHG_844nm_to_422nm", optomech.cube_splitter,
                                                     beam_844nm, beam_index=0b1, distance=0.5 * layout.inch,
-                                                    angle=angle, mount_type=optomech.skate_mount,
-                                                    mount_args=dict(material="BBO", phase_match_temp=45))
+                                                    angle=angle, mount_type=optomech.skate_mount)
     beam_422nm = baseplate.add_beam_path(x + 0.5 * layout.inch, y, angle, wavelength=422e-9, name="Beam_422nm")
 
     # Place photoionizer for Ca⁺
-    baseplate.place_element_along_beam("Photoionization_Ca+", optomech.photoionizer, beam_422nm,
+    baseplate.place_element_along_beam("Photoionization_Ca+", PI_Subsystem_ECDL, beam_422nm,
                                       beam_index=0b1, distance=0.75 * layout.inch, angle=angle)
     return beam_422nm
 
@@ -298,7 +297,7 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
                                         thumbscrews=True, littrow_angle=littrow_angle_294nm, beam_path=beam_294nm)
     print(f"Beam_294nm after cooling: Position={beam_294nm.Placement.Base}", flush=True)
 
-    '''
+   # '''
     # Photoionization for Ca⁺ at 422 nm
     beam_422nm = tune_and_shg_422nm(baseplate)
     print(f"Beam_422nm after photoionization: Position={beam_422nm.Placement.Base}", flush=True)
@@ -349,7 +348,7 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
     baseplate.place_element("Step Motor 294nm", stepper_motor, x=1.5 * layout.inch, y=input_y_588nm,
                            angle=layout.cardinal['right'])
 
-    # Add ion trap components
+    #Add ion trap components
     baseplate.place_element("PMT Array", pmt_array, x=base_dx - gap, y=0, angle=layout.cardinal['left'])
     baseplate.place_element("FPGA", fpga_board, x=4.5 * layout.inch, y=1.5 * layout.inch,
                            angle=layout.cardinal['right'])
@@ -357,7 +356,7 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
                            angle=layout.cardinal['right'])
     baseplate.place_element("ICP-MS Port", ion_injection_port, x=2.5 * layout.inch, y=3 * layout.inch,
                            angle=layout.cardinal['right'])
-    '''
+    #'''
 
 if is_headless:
     if __name__ == "__main__":
