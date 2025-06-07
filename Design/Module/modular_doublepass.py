@@ -3,6 +3,12 @@ from datetime import datetime
 import Part
 import FreeCAD as App
 
+from PyOpticL import layout, optomech
+from datetime import datetime
+import numpy as np
+import Part
+import FreeCAD as App
+
 class doublepass_f50:
     type = "Part::FeaturePython"
 
@@ -111,6 +117,34 @@ class doublepass_f50:
         else:
             obj.Shape = Part.makeBox(1, 1, 1)
 
+    def __getstate__(self):
+        """Return the state to be serialized, based on existing properties."""
+        # Serialize only the instance attributes that are serializable
+        state = {
+            'x': self.x,
+            'y': self.y,
+            'angle': self.angle,
+            'x_split': self.x_split,
+            'thumbscrews': self.thumbscrews,
+            'mirror_type': self.mirror.__class__.__name__  # Serialize mirror as its class name
+        }
+        return state
+
+    def __setstate__(self, state):
+        """Restore the state from serialized data."""
+        self.x = state.get('x', 0)
+        self.y = state.get('y', 0)
+        self.angle = state.get('angle', 0)
+        self.x_split = state.get('x_split', 0)
+        self.thumbscrews = state.get('thumbscrews', True)
+        # Restore mirror based on class name (assuming optomech is available)
+        mirror_type = state.get('mirror_type', 'mirror_mount_k05s2')
+        if hasattr(optomech, mirror_type):
+            self.mirror = getattr(optomech, mirror_type)
+        else:
+            self.mirror = optomech.mirror_mount_k05s2  # Default fallback
+        # baseplate is regenerated in execute, so no need to restore it here
+        self.baseplate = None
 
 # doublepass_f100 remains a function for now since it's not used in laser_cooling_subsystem
 def doublepass_f100(x=0, y=0, angle=0, mirror=optomech.mirror_mount_km05, x_split=False, thumbscrews=True):

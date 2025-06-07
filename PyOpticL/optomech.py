@@ -1,6 +1,6 @@
 from math import *
 from pathlib import Path
-
+import time
 import FreeCAD as App
 import Mesh
 import numpy as np
@@ -2545,12 +2545,15 @@ class laser_base:
 
 class ECDL:
     """
-    ECDL device 
+    ECDL device with optional cover box and serialization support
     """
     type = 'Part::FeaturePython'
-    def __init__(self, obj, drill=True, slot_length=0, countersink=False, counter_depth=3, arm_thickness=8, arm_clearance=2, stage_thickness=6, stage_length=20, mat_thickness=10, littrow_angle=56.6): 
+
+    def __init__(self, obj, drill=True, slot_length=0, countersink=False, counter_depth=3, arm_thickness=8, 
+                 arm_clearance=2, stage_thickness=6, stage_length=20, mat_thickness=10, littrow_angle=56.6, 
+                 cover_box=True): 
         obj.Proxy = self
-        # obj.addProperty("App::PropertyPlacement", "BasePlacement")
+        self.obj = obj  # Store the FreeCAD object for later use
         ViewProvider(obj.ViewObject)
 
         obj.addProperty('App::PropertyBool', 'Drill').Drill = drill
@@ -2564,93 +2567,153 @@ class ECDL:
         obj.addProperty('App::PropertyLength', 'MatThickness').MatThickness = mat_thickness
         obj.addProperty('App::PropertyAngle', 'LittrowAngle').LittrowAngle = littrow_angle
         obj.addProperty('Part::PropertyPartShape', 'DrillPart')
+        obj.addProperty('App::PropertyBool', 'CoverBox').CoverBox = cover_box  # New property to control cover box
 
         obj.ViewObject.ShapeColor = adapter_color
         obj.setEditorMode('Placement', 2)
 
-
-        dx = -5.334+2.032
-        mount = _add_linked_object(obj, "Mount KM100PM", prism_mount_km100pm, pos_offset=(2.032+13.96-3.8, -25.91+16, -18.67))
+        # Batch creation of linked objects
+        App.ActiveDocument.openTransaction("Create ECDL Components")
+        dx = -5.334 + 2.032
+        mount = _add_linked_object(obj, "Mount KM100PM", prism_mount_km100pm, pos_offset=(2.032 + 13.96 - 3.8, -25.91 + 16, -18.67))
         _add_linked_object(obj, "Diode Adapter", diode_adapter_s05lm56, pos_offset=(0, 0, 0))
-        _add_linked_object(obj, "Lens Tube", lens_tube_sm05l05, pos_offset=(dx+1.524+3.812, 0, 0))
-        _add_linked_object(obj, "Lens Adapter", lens_adapter_s05tm09, pos_offset=(dx+1.524+5, 0, 0))
-        _add_linked_object(obj, "Lens", mounted_lens_c220tmda, pos_offset=(dx+1.524+3.167+5, 0, 0))
-
+        _add_linked_object(obj, "Lens Tube", lens_tube_sm05l05, pos_offset=(dx + 1.524 + 3.812, 0, 0))
+        _add_linked_object(obj, "Lens Adapter", lens_adapter_s05tm09, pos_offset=(dx + 1.524 + 5, 0, 0))
+        _add_linked_object(obj, "Lens", mounted_lens_c220tmda, pos_offset=(dx + 1.524 + 3.167 + 5, 0, 0))
         _add_linked_object(obj, "Mount", fixed_mount_smr05, pos_offset=(2.032, 0, 0), rot_offset=(90, 0, 0), drill=False)
-        _add_linked_object(obj, "Wire Tube", wire_tube, pos_offset=(0, 0, -.5*inch), rot_offset=(0, 0, 0), drill=False)
-        _add_linked_object(obj, "Brewster_window", brewster_window, pos_offset=(0, 20, 1*inch), rot_offset=(0, 0, 0), drill=False)
+        _add_linked_object(obj, "Wire Tube", wire_tube, pos_offset=(0, 0, -0.5 * inch), rot_offset=(0, 0, 0), drill=False)
+        _add_linked_object(obj, "Brewster_window", brewster_window, pos_offset=(0, 20, 1 * inch), rot_offset=(0, 0, 0), drill=False)
 
-        gap =22
-        lit_angle = radians(90-obj.LittrowAngle.Value)
+        gap = 22
+        lit_angle = radians(90 - obj.LittrowAngle.Value)
         beam_angle = radians(obj.LittrowAngle.Value)
-        ref_len = gap/sin(2*beam_angle)
-        ref_x = ref_len*cos(2*beam_angle)
-        dx = ref_x+12.7*cos(lit_angle)+(6+3.2)*sin(lit_angle)
-        extra_x = 20-dx
-        grating_dx = -(6*sin(lit_angle)+12.7/2*cos(lit_angle))-extra_x
-        mirror_dx = grating_dx-ref_x
+        ref_len = gap / sin(2 * beam_angle)
+        ref_x = ref_len * cos(2 * beam_angle)
+        dx = ref_x + 12.7 * cos(lit_angle) + (6 + 3.2) * sin(lit_angle)
+        extra_x = 20 - dx
+        grating_dx = -(6 * sin(lit_angle) + 12.7 / 2 * cos(lit_angle)) - extra_x
+        mirror_dx = grating_dx - ref_x
 
-        _add_linked_object(obj, "Grating", square_grating, pos_offset=(grating_dx+47, -2+5, -2.7), rot_offset=(0, 0, 180-obj.LittrowAngle.Value))
-        _add_linked_object(obj, "PZT", box, pos_offset=(grating_dx+48.6, -7+5, -2.7), rot_offset=(0, 0, 180-obj.LittrowAngle.Value))
-        _add_linked_object(obj, "Mirror", square_mirror, pos_offset=(mirror_dx+36.5, gap-3, -2.7), rot_offset=(0, 0, -obj.LittrowAngle.Value))
+        _add_linked_object(obj, "Grating", square_grating, pos_offset=(grating_dx + 47, -2 + 5, -2.7), rot_offset=(0, 0, 180 - obj.LittrowAngle.Value))
+        _add_linked_object(obj, "PZT", box, pos_offset=(grating_dx + 48.6, -7 + 5, -2.7), rot_offset=(0, 0, 180 - obj.LittrowAngle.Value))
+        _add_linked_object(obj, "Mirror", square_mirror, pos_offset=(mirror_dx + 36.5, gap - 3, -2.7), rot_offset=(0, 0, -obj.LittrowAngle.Value))
+        upper_plate = _add_linked_object(obj, "Upper Plate", km05_tec_upper_plate, pos_offset=(2.032 + 13.96 - 3.8 - 13.96, 0, -inch / 4 - 6.3), width=1.5 * inch, drill_obj=mount)
+        _add_linked_object(obj, "TEC", TEC, pos_offset=(grating_dx + 20, 0, -33.7), rot_offset=(90, 90, 90))
+        _add_linked_object(obj, "Lower Plate", km05_tec_lower_plate, pos_offset=(2.032 + 13.96 - 3.8 - 13.96, 0, 3.25 * inch), width=3 * inch)
+        if obj.CoverBox:
+            _add_linked_object(obj, "Box", laser_box, pos_offset=(0, 0, 0 * inch), rot_offset=(0, 0, 0), mat_thickness=mat_thickness)
 
-        upper_plate = _add_linked_object(obj, "Upper Plate", km05_tec_upper_plate, pos_offset=(2.032+13.96-3.8-13.96, 0, -inch/4-6.3), width=1.5*inch, drill_obj=mount)
-        _add_linked_object(obj, "TEC", TEC, pos_offset=(grating_dx+20, 0, -33.7), rot_offset=(90, 90, 90))
-        _add_linked_object(obj, "Lower Plate", km05_tec_lower_plate, pos_offset=(2.032+13.96-3.8-13.96, 0, 3.25*inch), width=3*inch)
-        _add_linked_object(obj, "Box", laser_box, pos_offset=(0, 0, 0*inch), rot_offset=(0, 0, 0), mat_thickness=mat_thickness)
+        App.ActiveDocument.commitTransaction()
 
     def execute(self, obj):
-        dx = obj.ArmThickness.Value
-        dy = 45
-        dz = 17
-        stage_dx = obj.StageLength.Value
-        stage_dz = obj.StageThickness.Value
+        App.ActiveDocument.openTransaction("Update ECDL Shape")
+        try:
+            # Cache key based on relevant properties
+            cache_key = (obj.ArmThickness.Value, obj.ArmClearance.Value, obj.StageThickness.Value,
+                         obj.StageLength.Value, obj.SlotLength.Value, obj.LittrowAngle.Value)
+            if not hasattr(self, '_shape_cache') or self._shape_cache.get('key') != cache_key:
+                dx = obj.ArmThickness.Value
+                dy = 45
+                dz = 17
+                stage_dx = obj.StageLength.Value
+                stage_dz = obj.StageThickness.Value
 
-        part = _custom_box(dx=dx, dy=dy, dz=dz-obj.ArmClearance.Value,
-                           x=0, y=4, z=obj.ArmClearance.Value)
-        part = part.fuse(_custom_box(dx=stage_dx, dy=dy, dz=dz-obj.ArmClearance.Value,
-                                     x=0, y=4, z=dz, dir=(1, 0, -1)))
-        for ddy in [15.2, 38.1]:
-            part = part.cut(_custom_box(dx=stage_dx+dx, dy=obj.SlotLength.Value+bolt_4_40['clear_dia'], dz=bolt_4_40['clear_dia'],
-                                        x=stage_dx, y=25.4-ddy+2.5, z=6.4,
-                                        fillet=bolt_4_40['clear_dia']/2, dir=(-1, 0, 0)))
-            part = part.cut(_custom_box(dx=stage_dx+dx-5-4, dy=obj.SlotLength.Value+bolt_4_40['head_dia'], dz=bolt_4_40['head_dia'],
-                                        x=stage_dx, y=25.4-ddy+2.5, z=6.4,
-                                        fillet=bolt_4_40['head_dia']/2, dir=(-1, 0, 0)))
-            
-        extra_y = 0
-        gap = 22
-        lit_angle = radians(90-obj.LittrowAngle.Value)
-        beam_angle = radians(obj.LittrowAngle.Value)
-        ref_len = gap/sin(2*beam_angle)
-        ref_x = ref_len*cos(2*beam_angle)
-        dx2 = ref_x+9.7*cos(lit_angle)+(6+3.2)*sin(lit_angle)
-        extra_x = 18-dx2
-        dy2 = gap+9.7*sin(lit_angle)+(6+3.2)*cos(lit_angle)
-        dz2 = inch/2
-        cut_x = 18.7*cos(lit_angle)
+                part = _custom_box(dx=dx, dy=dy, dz=dz - obj.ArmClearance.Value,
+                                   x=0, y=4, z=obj.ArmClearance.Value)
+                part = part.fuse(_custom_box(dx=stage_dx, dy=dy, dz=dz - obj.ArmClearance.Value,
+                                             x=0, y=4, z=dz, dir=(1, 0, -1)))
+                for ddy in [15.2, 38.1]:
+                    part = part.cut(_custom_box(dx=stage_dx + dx, dy=obj.SlotLength.Value + bolt_4_40['clear_dia'], dz=bolt_4_40['clear_dia'],
+                                                x=stage_dx, y=25.4 - ddy + 2.5, z=6.4,
+                                                fillet=bolt_4_40['clear_dia'] / 2, dir=(-1, 0, 0)))
+                    part = part.cut(_custom_box(dx=stage_dx + dx - 5 - 4, dy=obj.SlotLength.Value + bolt_4_40['head_dia'], dz=bolt_4_40['head_dia'],
+                                                x=stage_dx, y=25.4 - ddy + 2.5, z=6.4,
+                                                fillet=bolt_4_40['head_dia'] / 2, dir=(-1, 0, 0)))
 
-        part = part.fuse(_custom_box(dx=stage_dx+dx/2, dy=dy, dz=stage_dz+12.7,
-                                     x=-dx/2, y=4, z=dz+12.7, dir=(1, 0, -1)))
+                extra_y = 0
+                gap = 22
+                lit_angle = radians(90 - obj.LittrowAngle.Value)
+                beam_angle = radians(obj.LittrowAngle.Value)
+                ref_len = gap / sin(2 * beam_angle)
+                ref_x = ref_len * cos(2 * beam_angle)
+                dx2 = ref_x + 9.7 * cos(lit_angle) + (6 + 3.2) * sin(lit_angle)
+                extra_x = 18 - dx2
+                dy2 = gap + 9.7 * sin(lit_angle) + (6 + 3.2) * cos(lit_angle)
+                dz2 = inch / 2
+                cut_x = 18.7 * cos(lit_angle)
 
-        part.translate(App.Vector(dx/2, 25.4-15.2+obj.SlotLength.Value/2, -6.4))
-        part.translate(App.Vector(2.032+13.96-3.8, -25.91+16, -18.67))
-        part = part.fuse(part)
+                part = part.fuse(_custom_box(dx=stage_dx + dx / 2, dy=dy, dz=stage_dz + 12.7,
+                                             x=-dx / 2, y=4, z=dz + 12.7, dir=(1, 0, -1)))
 
-        temp = _custom_box(dx=ref_len*cos(beam_angle)+12.2, dy=dy/sin(lit_angle)+15, dz=dz,
-                           x=-cut_x+9, y=-(dx-cut_x)*cos(lit_angle)-15, z=-6-3.07, dir=(-1, 1, 1))
-        temp.rotate(App.Vector(-cut_x, 0, 0), App.Vector(0, 0, 1), -obj.LittrowAngle.Value)
-        temp.translate(App.Vector(-extra_x+36, -20.7/2*sin(lit_angle)-6*cos(lit_angle), .2))
+                part.translate(App.Vector(dx / 2, 25.4 - 15.2 + obj.SlotLength.Value / 2, -6.4))
+                part.translate(App.Vector(2.032 + 13.96 - 3.8, -25.91 + 16, -18.67))
 
-        part = part.cut(temp)
-        part.Placement = obj.Placement
-        obj.Shape = part
+                temp = _custom_box(dx=ref_len * cos(beam_angle) + 12.2, dy=dy / sin(lit_angle) + 15, dz=dz,
+                                   x=-cut_x + 9, y=-(dx - cut_x) * cos(lit_angle) - 15, z=-6 - 3.07, dir=(-1, 1, 1))
+                temp.rotate(App.Vector(-cut_x, 0, 0), App.Vector(0, 0, 1), -obj.LittrowAngle.Value)
+                temp.translate(App.Vector(-extra_x + 36, -20.7 / 2 * sin(lit_angle) - 6 * cos(lit_angle), .2))
 
-        # part = _bounding_box(obj, 3, 4, z_tol=True, min_offset=(0, 0, 0.668))
-        # part.Placement = obj.Placement 
-        obj.DrillPart = part
+                part = part.cut(temp)
+                part.Placement = obj.Placement
 
-        #_add_linked_object(obj, "Box", laser_box, pos_offset=(0, 5, 0), rot_offset=(0, 0, 0), mat_thickness=0)
+                # Print update when shape changes
+                self.print_update(obj, "Shape updated")
+
+                # Cache the shape
+                self._shape_cache = {'key': cache_key, 'shape': part.copy()}
+            else:
+                part = self._shape_cache['shape'].copy()
+
+            obj.Shape = part
+            obj.DrillPart = part
+        finally:
+            App.ActiveDocument.commitTransaction()
+
+    def __getstate__(self):
+        """Return serializable state, including all properties with type-aware handling."""
+        state = {}
+        if hasattr(self, 'obj') and self.obj:
+            properties = {
+                'Drill': (bool, True),
+                'SlotLength': (float, 0),
+                'Countersink': (bool, False),
+                'CounterDepth': (float, 3),
+                'ArmThickness': (float, 8),
+                'ArmClearance': (float, 2),
+                'StageThickness': (float, 6),
+                'StageLength': (float, 20),
+                'MatThickness': (float, 10),
+                'LittrowAngle': (float, 56.6),
+                'CoverBox': (bool, True)
+            }
+            for prop, (prop_type, default) in properties.items():
+                value = getattr(self.obj, prop, default)
+                state[prop] = value.Value if prop_type == float and hasattr(value, 'Value') else value
+        return state
+
+    def __setstate__(self, state):
+        """Restore state to the FreeCAD object and trigger recompute without label dependency."""
+        if not hasattr(self, 'obj'):
+            # Attempt to find any ECDL object as a fallback (not ideal, but avoids index error)
+            ecdl_objects = [obj for obj in App.ActiveDocument.Objects if hasattr(obj, 'Proxy') and isinstance(obj.Proxy, ECDL)]
+            if ecdl_objects:
+                self.obj = ecdl_objects[0]  # Use the first ECDL as a temporary reference
+            else:
+                print("Warning: No ECDL objects found during deserialization. Shape may not restore.", flush=True)
+                return
+        for key, value in state.items():
+            if hasattr(self.obj, key):
+                setattr(self.obj, key, value)
+        App.ActiveDocument.recompute()  # Trigger document-wide recompute
+
+    def print_update(self, obj, message):
+        """Print updates to key properties."""
+        print(f"ECDL Update [{message}]: "
+              f"LittrowAngle={obj.LittrowAngle.Value:.1f}°, "
+              f"MatThickness={obj.MatThickness.Value} mm, "
+              f"CoverBox={obj.CoverBox}, "
+              f"Time={time.strftime('%H:%M:%S', time.localtime())}")
+
 
 class laser_mount_km100pm_LMR1:
     type = 'Part::FeaturePython'
@@ -4392,54 +4455,94 @@ class square_mirror:
 
 class ViewProvider:
     def __init__(self, obj):
+        """Initialize the view provider with a safe object reference."""
         obj.Proxy = self
-        self.Object = obj.Object
+        self.Object = None  # Initialize as None, will be set later if available
+        self.needs_recompute = False  # Flag to track recompute necessity
+        if hasattr(obj, 'Object') and obj.Object:
+            self.Object = obj.Object
 
     def attach(self, obj):
+        """Attach the view provider to the object, setting the reference if needed."""
+        if not hasattr(self, 'Object'):
+            if hasattr(obj, 'Object') and obj.Object:
+                self.Object = obj.Object
+            else:
+                print("Warning: attach called with no Object available.", flush=True)
+                return
         return
 
     def getDefaultDisplayMode(self):
+        """Return the default display mode."""
         return "Shaded"
 
     def onDelete(self, feature, subelements):
-        if hasattr(feature.Object, "ParentObject"):
-            if feature.Object.ParentObject != None:
+        """Handle object deletion, ensuring safe removal of children."""
+        if hasattr(feature, 'Object') and feature.Object:
+            if hasattr(feature.Object, "ParentObject") and feature.Object.ParentObject is not None:
                 return False
-        if hasattr(feature.Object, "ChildObjects"):
-            for obj in feature.Object.ChildObjects:
-                App.ActiveDocument.removeObject(obj.Name)
+            if hasattr(feature.Object, "ChildObjects"):
+                for obj in feature.Object.ChildObjects:
+                    App.ActiveDocument.removeObject(obj.Name)
         return True
     
     def updateData(self, obj, prop):
-        if str(prop) == "BasePlacement":
-            if obj.Baseplate != None:
-                obj.Placement.Base = obj.BasePlacement.Base + obj.Baseplate.Placement.Base
-                obj.Placement = App.Placement(obj.Placement.Base, obj.Baseplate.Placement.Rotation, -obj.BasePlacement.Base)
-                obj.Placement.Rotation = obj.Placement.Rotation.multiply(obj.BasePlacement.Rotation)
+        """Update object placement and child properties safely."""
+        if not hasattr(self, 'Object'):
+            if hasattr(obj, 'Object') and obj.Object:
+                self.Object = obj.Object
             else:
-                obj.Placement = obj.BasePlacement
+                print("Warning: updateData called with no Object available.", flush=True)
+                return
+
+        if str(prop) == "BasePlacement":
+            if hasattr(obj, 'Baseplate') and obj.Baseplate is not None:
+                try:
+                    obj.Placement.Base = obj.BasePlacement.Base + obj.Baseplate.Placement.Base
+                    obj.Placement = App.Placement(obj.Placement.Base, obj.Baseplate.Placement.Rotation, -obj.BasePlacement.Base)
+                    obj.Placement.Rotation = obj.Placement.Rotation.multiply(obj.BasePlacement.Rotation)
+                    self.needs_recompute = True  # Mark for recompute
+                except AttributeError as e:
+                    print(f"Warning: Placement update failed: {e}", flush=True)
+            else:
+                if hasattr(obj, 'BasePlacement'):
+                    obj.Placement = obj.BasePlacement
+                    self.needs_recompute = True  # Mark for recompute
             if hasattr(obj, "ChildObjects"):
                 for child in obj.ChildObjects:
-                    child.BasePlacement.Base = obj.BasePlacement.Base + child.RelativePlacement.Base
-                    if hasattr(child, "Angle"):
-                        obj.BasePlacement.Rotation = App.Rotation(App.Vector(0, 0, 1), obj.Angle)
-                    else:
-                        child.BasePlacement = App.Placement(child.BasePlacement.Base, obj.BasePlacement.Rotation, -child.RelativePlacement.Base)
-                        child.BasePlacement.Rotation = child.BasePlacement.Rotation.multiply(child.RelativePlacement.Rotation)
+                    if hasattr(child, 'BasePlacement') and hasattr(child, 'RelativePlacement'):
+                        child.BasePlacement.Base = obj.BasePlacement.Base + child.RelativePlacement.Base
+                        if hasattr(child, "Angle"):
+                            obj.BasePlacement.Rotation = App.Rotation(App.Vector(0, 0, 1), obj.Angle)
+                        else:
+                            child.BasePlacement = App.Placement(child.BasePlacement.Base, obj.BasePlacement.Rotation, -child.RelativePlacement.Base)
+                            child.BasePlacement.Rotation = child.BasePlacement.Rotation.multiply(child.RelativePlacement.Rotation)
+                        self.needs_recompute = True  # Mark for recompute
             if hasattr(obj, "RelativeObjects"):
                 for child in obj.RelativeObjects:
-                    child.BasePlacement.Base = obj.BasePlacement.Base + child.RelativePlacement.Base
-        if str(prop) == "Angle":
-            obj.BasePlacement.Rotation = App.Rotation(App.Vector(0, 0, 1), obj.Angle)
+                    if hasattr(child, 'BasePlacement') and hasattr(child, 'RelativePlacement'):
+                        child.BasePlacement.Base = obj.BasePlacement.Base + child.RelativePlacement.Base
+                        self.needs_recompute = True  # Mark for recompute
+        elif str(prop) == "Angle":
+            if hasattr(obj, 'BasePlacement'):
+                obj.BasePlacement.Rotation = App.Rotation(App.Vector(0, 0, 1), obj.Angle)
+                self.needs_recompute = True  # Mark for recompute
         return
     
+    def onChanged(self, vp, prop):
+        """Handle property changes to trigger recompute if needed."""
+        if prop == "needs_recompute" and self.needs_recompute:
+            App.ActiveDocument.recompute()
+            self.needs_recompute = False  # Reset flag
+
     def claimChildren(self):
-        if hasattr(self.Object, "ChildObjects"):
+        """Safely claim child objects, returning an empty list if Object is unavailable."""
+        if hasattr(self, 'Object') and self.Object and hasattr(self.Object, "ChildObjects"):
             return self.Object.ChildObjects
-        else:
-            return []
+        return []
 
     def getIcon(self):
+        """Return the icon for the view provider."""
         return """
             /* XPM */
             static char *_e94ebdf19f64588ceeb5b5397743c6amoxjrynTrPg9Fk5U[] = {
@@ -4468,11 +4571,12 @@ class ViewProvider:
             """
 
     def __getstate__(self):
+        """Avoid serialization of the view provider."""
         return None
 
-    def __setstate__(self,state):
+    def __setstate__(self, state):
+        """Avoid deserialization of the view provider."""
         return None
-    
 
 
 ####################################### ARXIV #######################################

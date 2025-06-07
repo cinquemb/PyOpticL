@@ -61,6 +61,23 @@ class telescope:
         else:
             obj.Shape = Part.makeBox(1, 1, 1)
 
+    def __getstate__(self):
+        """Return the state to be serialized, based on existing properties."""
+        state = {
+            'x': self.x,
+            'y': self.y,
+            'angle': self.angle
+        }
+        return state
+
+    def __setstate__(self, state):
+        """Restore the state from serialized data."""
+        self.x = state.get('x', 0)
+        self.y = state.get('y', 0)
+        self.angle = state.get('angle', 0)
+        # baseplate is regenerated in execute, so no need to restore it here
+        self.baseplate = None
+
 if __name__ == "__main__":
     doc = App.ActiveDocument
     obj = doc.addObject("Part::FeaturePython", "Telescope")

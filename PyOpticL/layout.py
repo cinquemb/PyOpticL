@@ -533,42 +533,71 @@ def show_components(state):
 
 
 class ViewProvider:
-
     def __init__(self, obj):
+        """Initialize the view provider with a safe object reference."""
         obj.Proxy = self
-        self.Object = obj.Object
+        self.Object = None  # Initialize as None to avoid premature access
+        if hasattr(obj, 'Object') and obj.Object:
+            self.Object = obj.Object
 
     def attach(self, obj):
+        """Attach the view provider to the object, setting the reference if needed."""
+        if not hasattr(self, 'Object'):
+            if hasattr(obj, 'Object') and obj.Object:
+                self.Object = obj.Object
+            else:
+                print("Warning: attach called with no Object available.", flush=True)
+                return
         return
-    
+
     def getDefaultDisplayMode(self):
+        """Return the default display mode."""
         return "Shaded"
-        
+
     def updateData(self, base_obj, prop):
+        """Update object placement safely."""
+        if not hasattr(self, 'Object'):
+            if hasattr(base_obj, 'Object') and base_obj.Object:
+                self.Object = base_obj.Object
+            else:
+                print("Warning: updateData called with no Object available.", flush=True)
+                return
+
         for obj in App.ActiveDocument.Objects:
-            if hasattr(obj, "BasePlacement") and obj.Baseplate != None:
-                obj.Placement.Base = obj.BasePlacement.Base + obj.Baseplate.Placement.Base
-                obj.Placement = App.Placement(obj.Placement.Base, obj.Baseplate.Placement.Rotation, -obj.BasePlacement.Base)
-                obj.Placement.Rotation = obj.Placement.Rotation.multiply(obj.BasePlacement.Rotation)
+            if hasattr(obj, "BasePlacement") and hasattr(obj, "Baseplate") and obj.Baseplate is not None:
+                try:
+                    # Compute the new placement base
+                    placement_base = obj.BasePlacement.Base + obj.Baseplate.Placement.Base
+                    # Update placement with baseplate rotation and offset
+                    obj.Placement = App.Placement(placement_base, obj.Baseplate.Placement.Rotation, -obj.BasePlacement.Base)
+                    # Combine rotations
+                    obj.Placement.Rotation = obj.Placement.Rotation.multiply(obj.BasePlacement.Rotation)
+                except AttributeError as e:
+                    print(f"Warning: Placement update failed for {obj.Label}: {e}", flush=True)
+        return
 
     def onDelete(self, feature, subelements):
-        # delete all elements when baseplate is deleted
-        for i in App.ActiveDocument.Objects:
-            if i != feature.Object:
-                App.ActiveDocument.removeObject(i.Name)
+        """Handle object deletion, ensuring safe removal of children."""
+        if self.Object:
+            for i in App.ActiveDocument.Objects:
+                if i != self.Object:
+                    App.ActiveDocument.removeObject(i.Name)
         return True
-    
+
     def claimChildren(self):
-        if hasattr(self.Object, "ChildObjects"):
+        """Safely claim child objects, returning an empty list if Object is unavailable."""
+        if self.Object and hasattr(self.Object, "ChildObjects"):
             return self.Object.ChildObjects
-        else:
-            return []
+        return []
 
     def getIcon(self):
-        return 
+        """Return the icon for the view provider (update with your icon if needed)."""
+        return ""  # Placeholder; add your XPM icon string here if desired
 
     def __getstate__(self):
+        """Avoid serialization of the view provider."""
         return None
 
-    def __setstate__(self,state):
+    def __setstate__(self, state):
+        """Avoid deserialization of the view provider."""
         return None
