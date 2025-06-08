@@ -5,12 +5,11 @@ import os
 import FreeCAD as App
 import numpy as np
 import gc
+import time
 
 is_headless = False
-# Redirect output to file to reduce memory buffering
 sys.stdout = open('debug_output.txt', 'w')
 
-# Debug the directory structure and sys.path
 script_dir = os.path.dirname(os.path.abspath(__file__))
 subsystem_dir = os.path.join(script_dir, 'Design/Subsystem')
 module_dir = os.path.join(script_dir, 'Design/Module')
@@ -49,6 +48,7 @@ def make_serializable(cls):
 
 make_serializable(ECDL_isolator_baseplate)
 make_serializable(doublepass_f50)
+# Apply serialization to other custom classes if needed (e.g., optomech.ECDL, aom, etc.)
 
 # Baseplate constants
 base_dx = 12 * layout.inch
@@ -63,7 +63,6 @@ mount_holes = [
     (11 * layout.inch, 11 * layout.inch)
 ]
 
-# Y-coordinates and Littrow angles (same as original)
 input_y_588nm = 0.5 * layout.inch
 input_y_405nm_1 = 1.0 * layout.inch
 input_y_405nm_2 = 2.0 * layout.inch
@@ -87,7 +86,6 @@ print(f"Denominator 294nm: {2 * grating_pitch_d}, Angle: {littrow_angle_294nm}")
 print(f"Denominator 422nm: {2 * grating_pitch_d}, Angle: {littrow_angle_422nm}")
 print(f"Denominator 866nm: {2 * grating_pitch_d_866}, Angle: {littrow_angle_866nm}")
 
-# Custom beam path methods (same as original)
 def add_beam_path(self, x, y, angle, name="Beam Path", color=(1.0, 0.0, 0.0), z=0, wavelength=850e-9, **args):
     obj = App.ActiveDocument.addObject('Part::FeaturePython', name)
     obj.Label = name
@@ -214,7 +212,7 @@ def tune_and_shg_422nm(baseplate, x=1 * layout.inch, y=input_y_850nm_2, angle=la
 
     # Place components on the existing baseplate for Photoionization_Ca+
     baseplate.place_element("ECDL", optomech.ECDL, x=x + 4.3, y=y - 4,
-                           angle=90 + angle, littrow_angle=littrow_angle_422nm, cover_box=False)  # modeling of a home-made laser
+                           angle=90 + angle, littrow_angle=littrow_angle_422nm, cover_box=False)
     baseplate.place_element("ECDL Isolator", ECDL_isolator_baseplate, x=x + 7, y=y + 1,
                            angle=optomech.layout.cardinal['up'])
     singlepass(baseplate, x=x, y=y + 7, angle=angle, thumbscrews=True)
@@ -325,14 +323,23 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
     for name, create_func in subcomponents:
         doc = App.newDocument(name)
         bp = layout.baseplate(base_dx, base_dy, base_dz, x=x, y=y, angle=angle, gap=gap, mount_holes=mount_holes)
-        doc.addObject("App::DocumentObjectGroup", "BaseplateGroup")
-        bp_proxy = doc.getObject("BaseplateGroup").newObject("Part::FeaturePython", "Baseplate")
-        ECDL_isolator_baseplate(bp_proxy)
-        create_func(bp)
-        doc.recompute()
-        doc.saveAs(os.path.join(output_dir, f"{name}.fcstd"))
+        # Only create BaseplateGroup if needed, and avoid overwriting the main object
+        baseplate_group = doc.addObject("App::DocumentObjectGroup", "BaseplateGroup")
+        main_obj = create_func(bp)  # Get the object created by place_element_along_beam
+        if main_obj and hasattr(main_obj, "Label") and main_obj.Label == "SHG 588nm to 294nm":
+            print(f"Created main object: {main_obj.Label} (Name: {main_obj.Name})")
+            # Optionally add to BaseplateGroup if needed, but keep as top-level
+            baseplate_group.addObject(main_obj)
+            bp_proxy = doc.addObject("Part::FeaturePython", "Baseplate")
+            ECDL_isolator_baseplate(bp_proxy)
+            doc.recompute()
+            doc.saveAs(os.path.join(output_dir, f"{name}.fcstd"))
+        else:
+            print(f"Warning: Main object SHG 588nm to 294nm not found, saving anyway")
+            doc.recompute()
+            doc.saveAs(os.path.join(output_dir, f"{name}.fcstd"))
         App.closeDocument(name)
-        gc.collect()  # Force garbage collection to free memory
+        gc.collect()
 
     # Create master document
     master_doc = App.newDocument("IsotopeSeparation")
@@ -365,20 +372,51 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
         "ICPMS_Port": App.Placement(App.Vector(2.5 * layout.inch, 3 * layout.inch, 0), App.Rotation(0, 0, layout.cardinal['right']))
     }
 
-    # Import subcomponents
+    # Import subcomponents with error handling and refined filtering
     for name, _ in subcomponents:
-        print(name)
+        print(f"Processing subcomponent: {name}")
         doc = App.openDocument(os.path.join(output_dir, f"{name}.fcstd"))
         if doc:
+            main_object = None
             for obj in doc.Objects:
-                if obj.Name != "Baseplate":
-                    link = master_doc.addObject("App::Link", f"Link_{name}_{obj.Name}")
-                    link.LinkedObject = (doc.getObject(obj.Name), [])
-                    if name in placements:
-                        link.Placement = placements[name]
-                    master_doc.recompute()
+                if obj.Name == "Baseplate":
+                    print(f"Skipping Baseplate (Type: {obj.TypeId}) as it’s not a linkable object")
+                    continue
+                if obj.TypeId in ["Part::FeaturePython", "Part::Box", "Part::Cylinder"]:
+                    if "Mount_Hole" in obj.Name or "Hole" in obj.Name:
+                        print(f"Skipping {obj.Name} (Type: {obj.TypeId}) as it’s a mount hole")
+                        continue
+                    # Prefer the object named "SHG 588nm to 294nm" if it exists
+                    if hasattr(obj, "Label") and obj.Label == "SHG 588nm to 294nm":
+                        main_object = obj.Name
+                    link_name = f"Link_{name}_{obj.Name}"
+                    print(f"Linking {link_name} from {obj.Name} (Type: {obj.TypeId})")
+                    link = master_doc.addObject("App::Link", link_name)
+                    target_obj = doc.getObject(obj.Name)
+                    if target_obj:
+                        link.LinkedObject = (target_obj, [])
+                        if name in placements:
+                            link.Placement = placements[name]
+                        master_doc.recompute()
+                        if main_object == obj.Name:
+                            break  # Stop after linking the main object
+                    else:
+                        print(f"Warning: Object {obj.Name} not found in {name}.fcstd", flush=True)
+                else:
+                    print(f"Skipping {obj.Name} (Type: {obj.TypeId}) as it’s not a linkable type")
+            if not main_object:
+                print(f"Warning: No valid main object (SHG 588nm to 294nm) found in {name}.fcstd", flush=True)
             App.closeDocument(name)
             gc.collect()
+        else:
+            print(f"Warning: Failed to open document {name}.fcstd", flush=True)
+
+    # Force save to ensure document state
+    master_doc.save()
+    master_doc.saveAs(os.path.join(output_dir, "IsotopeSeparation.fcstd"))
+    App.closeDocument("IsotopeSeparation")
+
+# ... (rest of the code unchanged)
 
     master_doc.saveAs(os.path.join(output_dir, "IsotopeSeparation.fcstd"))
     App.closeDocument("IsotopeSeparation")
