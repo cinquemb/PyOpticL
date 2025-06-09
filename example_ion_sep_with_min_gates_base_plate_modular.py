@@ -5,7 +5,10 @@ import os
 import FreeCAD as App
 import numpy as np
 import gc
-import time
+import zipfile
+import json
+import xml.etree.ElementTree as ET
+from lxml import etree
 
 is_headless = False
 sys.stdout = open('debug_output.txt', 'w')
@@ -48,7 +51,6 @@ def make_serializable(cls):
 
 make_serializable(ECDL_isolator_baseplate)
 make_serializable(doublepass_f50)
-# Apply serialization to other custom classes if needed (e.g., optomech.ECDL, aom, etc.)
 
 # Baseplate constants
 base_dx = 12 * layout.inch
@@ -319,23 +321,26 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
+    main_component_name_map = {}
+
     # Generate individual files
     for name, create_func in subcomponents:
         doc = App.newDocument(name)
         bp = layout.baseplate(base_dx, base_dy, base_dz, x=x, y=y, angle=angle, gap=gap, mount_holes=mount_holes)
-        # Only create BaseplateGroup if needed, and avoid overwriting the main object
         baseplate_group = doc.addObject("App::DocumentObjectGroup", "BaseplateGroup")
-        main_obj = create_func(bp)  # Get the object created by place_element_along_beam
-        if main_obj and hasattr(main_obj, "Label") and main_obj.Label == "SHG 588nm to 294nm":
-            print(f"Created main object: {main_obj.Label} (Name: {main_obj.Name})")
-            # Optionally add to BaseplateGroup if needed, but keep as top-level
+        main_obj = create_func(bp)
+        if main_obj:
+            if isinstance(main_obj, list):
+                main_obj = main_obj[0]  # Take the first object if a list is returned
+            print(f"Created primary object for {name}: {main_obj.Label} (Name: {main_obj.Name})")
+            main_component_name_map[name] = main_obj.Name
             baseplate_group.addObject(main_obj)
             bp_proxy = doc.addObject("Part::FeaturePython", "Baseplate")
             ECDL_isolator_baseplate(bp_proxy)
             doc.recompute()
             doc.saveAs(os.path.join(output_dir, f"{name}.fcstd"))
         else:
-            print(f"Warning: Main object SHG 588nm to 294nm not found, saving anyway")
+            print(f"Warning: No primary object created for {name}, saving anyway")
             doc.recompute()
             doc.saveAs(os.path.join(output_dir, f"{name}.fcstd"))
         App.closeDocument(name)
@@ -372,52 +377,104 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
         "ICPMS_Port": App.Placement(App.Vector(2.5 * layout.inch, 3 * layout.inch, 0), App.Rotation(0, 0, layout.cardinal['right']))
     }
 
-    # Import subcomponents with error handling and refined filtering
+    # Import subcomponents and link based on Document.xml
     for name, _ in subcomponents:
         print(f"Processing subcomponent: {name}")
-        doc = App.openDocument(os.path.join(output_dir, f"{name}.fcstd"))
-        if doc:
-            main_object = None
-            for obj in doc.Objects:
-                if obj.Name == "Baseplate":
-                    print(f"Skipping Baseplate (Type: {obj.TypeId}) as it’s not a linkable object")
-                    continue
-                if obj.TypeId in ["Part::FeaturePython", "Part::Box", "Part::Cylinder"]:
-                    if "Mount_Hole" in obj.Name or "Hole" in obj.Name:
-                        print(f"Skipping {obj.Name} (Type: {obj.TypeId}) as it’s a mount hole")
-                        continue
-                    # Prefer the object named "SHG 588nm to 294nm" if it exists
-                    if hasattr(obj, "Label") and obj.Label == "SHG 588nm to 294nm":
-                        main_object = obj.Name
-                    link_name = f"Link_{name}_{obj.Name}"
-                    print(f"Linking {link_name} from {obj.Name} (Type: {obj.TypeId})")
-                    link = master_doc.addObject("App::Link", link_name)
-                    target_obj = doc.getObject(obj.Name)
-                    if target_obj:
-                        link.LinkedObject = (target_obj, [])
-                        if name in placements:
-                            link.Placement = placements[name]
-                        master_doc.recompute()
-                        if main_object == obj.Name:
-                            break  # Stop after linking the main object
-                    else:
-                        print(f"Warning: Object {obj.Name} not found in {name}.fcstd", flush=True)
-                else:
-                    print(f"Skipping {obj.Name} (Type: {obj.TypeId}) as it’s not a linkable type")
-            if not main_object:
-                print(f"Warning: No valid main object (SHG 588nm to 294nm) found in {name}.fcstd", flush=True)
-            App.closeDocument(name)
-            gc.collect()
+        fcstd_path = os.path.join(output_dir, f"{name}.fcstd")
+        if os.path.exists(fcstd_path):
+            with zipfile.ZipFile(fcstd_path, 'r') as zf:
+                with zf.open('Document.xml') as xml_file:
+                    tree = ET.parse(xml_file)
+                    root = tree.getroot()
+
+                    # Extract objects with types and touched status from <Objects>
+                    objects_with_types = {}
+                    for obj in root.find('.//Objects').findall('Object'):
+                        obj_name = obj.get('name')
+                        if obj_name:
+                            objects_with_types[obj_name] = {
+                                'type': obj.get('type'),
+                                'touched': obj.get('Touched', '0') == '1'
+                            }
+                    print(f"Objects with types: {objects_with_types}")
+
+                    # Extract labels from <ObjectData>
+                    objects_with_labels = {}
+                    for obj in root.find('.//ObjectData').findall('Object'):
+                        obj_name = obj.get('name')
+                        label_elem = obj.find('.//Property[@name="Label"]/String')
+                        label = label_elem.get('value') if label_elem is not None else None
+                        if obj_name and obj_name in objects_with_types:
+                            objects_with_labels[obj_name] = label
+                            print(f"Object {obj_name}: Label={label}, Type={objects_with_types[obj_name]['type']}, Touched={objects_with_types[obj_name]['touched']}")
+
+                    # Determine the primary object with improved heuristic
+                    target_name = None
+                    for obj_name, attrs in objects_with_types.items():
+                        if obj_name == "Baseplate" or "Mount_Hole" in obj_name or "Hole" in obj_name:
+                            continue
+                        if attrs['type'] in ["Part::FeaturePython", "Part::Box", "Part::Cylinder"]:
+                            if main_component_name_map[name] == obj_name:
+                                target_name = obj_name
+                                break
+                    if not target_name:
+                        print(f"Warning: No suitable primary object found in {name}.fcstd")
+                        for obj_name, attrs in objects_with_types.items():
+                            if attrs['type'] in ["Part::FeaturePython", "Part::Box", "Part::Cylinder"] and not ("Mount_Hole" in obj_name or "Hole" in obj_name):
+                                target_name = obj_name
+                                print(f"Fallback: Linking {target_name} as primary object")
+                                break
+
+                    # Open document and link the target object
+                    doc = App.openDocument(fcstd_path)
+                    if doc:
+                        print(f"Objects in {name}.fcstd: {[obj.Name for obj in doc.Objects]}")
+                        target_obj = doc.getObject(target_name)
+                        if target_obj:
+                            # Ensure document is saved and recomputed
+                            doc.saveAs(fcstd_path)
+                            print(f"Document {doc.Name} saved to {fcstd_path}")
+                            # Recompute until no longer touched or limit attempts
+                            max_recompute_attempts = 5
+                            for attempt in range(max_recompute_attempts):
+                                doc.recompute(None, True)
+                                touched_objects = [obj for obj in doc.Objects if hasattr(obj, 'touched') and getattr(obj, 'touched', False)]
+                                if not touched_objects:
+                                    break
+                                print(f"Attempt {attempt + 1}/{max_recompute_attempts}: {len(touched_objects)} touched objects remain")
+                                time.sleep(0.5)  # Brief delay to allow FreeCAD to process
+                            else:
+                                print(f"Warning: {len(touched_objects)} objects still touched after {max_recompute_attempts} attempts")
+
+                            # Reopen document to ensure a clean state
+                            App.closeDocument(doc.Name)
+                            gc.collect()
+                            doc = App.openDocument(fcstd_path)
+                            doc.recompute(None, True)
+
+                            link_name = f"Link_{name}_{target_name}"
+                            print(f"Linking {link_name} from {target_name}")
+                            link = master_doc.addObject("App::Link", link_name)
+                            try:
+                                link.LinkedObject = (target_obj, [])
+                                if name in placements:
+                                    link.Placement = placements[name]
+                                else:
+                                    print(f"Warning: No placement defined for {name}, using default")
+                            except AttributeError as e:
+                                print(f"Error setting link attributes: {e}")
+                            except RuntimeError as e:
+                                print(f"Error linking object: {e}")
+                            master_doc.recompute()
+                        else:
+                            print(f"Warning: Object {target_name} not found in {name}.fcstd after XML parse")
+                        App.closeDocument(name)
+                        gc.collect()
         else:
-            print(f"Warning: Failed to open document {name}.fcstd", flush=True)
+            print(f"Warning: Failed to open document {name}.fcstd")
 
     # Force save to ensure document state
-    master_doc.save()
-    master_doc.saveAs(os.path.join(output_dir, "IsotopeSeparation.fcstd"))
-    App.closeDocument("IsotopeSeparation")
-
-# ... (rest of the code unchanged)
-
+    #master_doc.save()
     master_doc.saveAs(os.path.join(output_dir, "IsotopeSeparation.fcstd"))
     App.closeDocument("IsotopeSeparation")
 
