@@ -3,6 +3,8 @@ start_time = time.time()
 import sys
 import os
 import FreeCAD as App
+import FreeCADGui
+
 import numpy as np
 import gc
 import zipfile
@@ -10,8 +12,9 @@ import json
 import xml.etree.ElementTree as ET
 from lxml import etree
 
-is_headless = False
+is_headless = True
 sys.stdout = open('debug_output.txt', 'w')
+sys.stderr = open('debug_error.txt', 'w')
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 subsystem_dir = os.path.join(script_dir, 'Design/Subsystem')
@@ -38,6 +41,10 @@ from ECDL_Isolator_plate import ECDL_isolator_baseplate
 from modular_singlepass import singlepass, singlepass_mirrored
 from modular_beam_pickoff import Beam_pickoff
 from modular_sourcebox import sourcebox
+
+if not is_headless:
+    # Start a transaction to batch operations
+    App.ActiveDocument.openTransaction("Batch Object Creation")
 
 # Monkey-patch for serialization
 def make_serializable(cls):
@@ -269,6 +276,7 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
     baseplate = layout.baseplate(base_dx, base_dy, base_dz, x=x, y=y, angle=angle,
                                  gap=gap, mount_holes=mount_holes)
     print(f"Baseplate dimensions: dx={base_dx}, dy={base_dy}, dz={base_dz}", flush=True)
+    print(baseplate.__dict__)
 
     subcomponents = [
         ("SHG_588nm_to_294nm", lambda bp: bp.place_element_along_beam("SHG 588nm to 294nm", optomech.cube_splitter, bp.add_beam_path(x=0, y=input_y_588nm, angle=layout.cardinal['right']),
@@ -317,174 +325,246 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
                                                   angle=layout.cardinal['right']))
     ]
 
-    output_dir = os.path.join(script_dir, 'output_components')
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    main_component_name_map = {}
-
-    # Generate individual files
-    for name, create_func in subcomponents:
-        doc = App.newDocument(name)
-        bp = layout.baseplate(base_dx, base_dy, base_dz, x=x, y=y, angle=angle, gap=gap, mount_holes=mount_holes)
-        baseplate_group = doc.addObject("App::DocumentObjectGroup", "BaseplateGroup")
-        main_obj = create_func(bp)
-        if main_obj:
-            if isinstance(main_obj, list):
-                main_obj = main_obj[0]  # Take the first object if a list is returned
-            print(f"Created primary object for {name}: {main_obj.Label} (Name: {main_obj.Name})")
-            main_component_name_map[name] = main_obj.Name
-            baseplate_group.addObject(main_obj)
-            bp_proxy = doc.addObject("Part::FeaturePython", "Baseplate")
-            ECDL_isolator_baseplate(bp_proxy)
-            doc.recompute()
-            doc.saveAs(os.path.join(output_dir, f"{name}.fcstd"))
-        else:
-            print(f"Warning: No primary object created for {name}, saving anyway")
-            doc.recompute()
-            doc.saveAs(os.path.join(output_dir, f"{name}.fcstd"))
-        App.closeDocument(name)
-        gc.collect()
-
-    # Create master document
-    master_doc = App.newDocument("IsotopeSeparation")
-    master_baseplate = master_doc.addObject("Part::FeaturePython", "Baseplate")
-    ECDL_isolator_baseplate(master_baseplate)
-    master_doc.recompute()
-
-    # Define placements
     placements = {
-        "SHG_588nm_to_294nm": App.Placement(App.Vector(0, input_y_588nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
-        "Beam_294nm": App.Placement(App.Vector(0.5 * layout.inch, input_y_588nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
-        "Cooling_294nm": App.Placement(App.Vector(3 * layout.inch, 3 * layout.inch, 0), App.Rotation(0, 0, 90)),
-        "Photoionization_422nm": App.Placement(App.Vector(1 * layout.inch, input_y_850nm_2, 0), App.Rotation(0, 0, layout.cardinal['right'])),
-        "Repumping_866nm": App.Placement(App.Vector(gap + 0.5 * layout.inch, input_y_850nm, 0), App.Rotation(0, 0, 90)),
-        "Cooling_397nm": App.Placement(App.Vector(4 * layout.inch, input_y_405nm_1, 0), App.Rotation(0, 0, 90)),
-        "Repumping_403nm": App.Placement(App.Vector(gap + 1 * layout.inch, input_y_405nm_2, 0), App.Rotation(0, 0, 90)),
-        "AOM_397nm": App.Placement(App.Vector(4 * layout.inch + 0.5 * layout.inch, input_y_405nm_1, 0), App.Rotation(0, 0, layout.cardinal['right'])),
-        "AOM_866nm": App.Placement(App.Vector(gap + 0.5 * layout.inch + 0.5 * layout.inch, input_y_850nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
-        "AOM_403nm": App.Placement(App.Vector(gap + 1 * layout.inch + 0.5 * layout.inch, input_y_405nm_2, 0), App.Rotation(0, 0, layout.cardinal['right'])),
-        "AOM_294nm": App.Placement(App.Vector(0.5 * layout.inch + 0.5 * layout.inch, input_y_588nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
-        "Mirror_866nm": App.Placement(App.Vector(gap + 0.5 * layout.inch + 1 * layout.inch, input_y_850nm, 0), App.Rotation(0, 0, layout.turn['up-right'])),
-        "Mirror_294nm": App.Placement(App.Vector(0.5 * layout.inch + 1 * layout.inch, input_y_588nm, 0), App.Rotation(0, 0, layout.turn['up-right'])),
-        "StepMotor_397nm": App.Placement(App.Vector(1.5 * layout.inch, input_y_405nm_1, 0), App.Rotation(0, 0, layout.cardinal['right'])),
-        "StepMotor_866nm": App.Placement(App.Vector(1.5 * layout.inch, input_y_850nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
-        "StepMotor_403nm": App.Placement(App.Vector(1.5 * layout.inch, input_y_405nm_2, 0), App.Rotation(0, 0, layout.cardinal['right'])),
-        "StepMotor_294nm": App.Placement(App.Vector(1.5 * layout.inch, input_y_588nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
-        "PMTArray": App.Placement(App.Vector(base_dx - gap, 0, 0), App.Rotation(0, 0, layout.cardinal['left'])),
-        "FPGA": App.Placement(App.Vector(4.5 * layout.inch, 1.5 * layout.inch, 0), App.Rotation(0, 0, layout.cardinal['right'])),
-        "MSAE_Cavity": App.Placement(App.Vector(3 * layout.inch, 3.5 * layout.inch, 0), App.Rotation(0, 0, layout.cardinal['right'])),
-        "ICPMS_Port": App.Placement(App.Vector(2.5 * layout.inch, 3 * layout.inch, 0), App.Rotation(0, 0, layout.cardinal['right']))
-    }
+            "SHG_588nm_to_294nm": App.Placement(App.Vector(0, input_y_588nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "Beam_294nm": App.Placement(App.Vector(0.5 * layout.inch, input_y_588nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "Cooling_294nm": App.Placement(App.Vector(3 * layout.inch, 3 * layout.inch, 0), App.Rotation(0, 0, 90)),
+            "Photoionization_422nm": App.Placement(App.Vector(1 * layout.inch, input_y_850nm_2, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "Repumping_866nm": App.Placement(App.Vector(gap + 0.5 * layout.inch, input_y_850nm, 0), App.Rotation(0, 0, 90)),
+            "Cooling_397nm": App.Placement(App.Vector(4 * layout.inch, input_y_405nm_1, 0), App.Rotation(0, 0, 90)),
+            "Repumping_403nm": App.Placement(App.Vector(gap + 1 * layout.inch, input_y_405nm_2, 0), App.Rotation(0, 0, 90)),
+            "AOM_397nm": App.Placement(App.Vector(4 * layout.inch + 0.5 * layout.inch, input_y_405nm_1, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "AOM_866nm": App.Placement(App.Vector(gap + 0.5 * layout.inch + 0.5 * layout.inch, input_y_850nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "AOM_403nm": App.Placement(App.Vector(gap + 1 * layout.inch + 0.5 * layout.inch, input_y_405nm_2, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "AOM_294nm": App.Placement(App.Vector(0.5 * layout.inch + 0.5 * layout.inch, input_y_588nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "Mirror_866nm": App.Placement(App.Vector(gap + 0.5 * layout.inch + 1 * layout.inch, input_y_850nm, 0), App.Rotation(0, 0, layout.turn['up-right'])),
+            "Mirror_294nm": App.Placement(App.Vector(0.5 * layout.inch + 1 * layout.inch, input_y_588nm, 0), App.Rotation(0, 0, layout.turn['up-right'])),
+            "StepMotor_397nm": App.Placement(App.Vector(1.5 * layout.inch, input_y_405nm_1, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "StepMotor_866nm": App.Placement(App.Vector(1.5 * layout.inch, input_y_850nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "StepMotor_403nm": App.Placement(App.Vector(1.5 * layout.inch, input_y_405nm_2, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "StepMotor_294nm": App.Placement(App.Vector(1.5 * layout.inch, input_y_588nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "PMTArray": App.Placement(App.Vector(base_dx - gap, 0, 0), App.Rotation(0, 0, layout.cardinal['left'])),
+            "FPGA": App.Placement(App.Vector(4.5 * layout.inch, 1.5 * layout.inch, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "MSAE_Cavity": App.Placement(App.Vector(3 * layout.inch, 3.5 * layout.inch, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "ICPMS_Port": App.Placement(App.Vector(2.5 * layout.inch, 3 * layout.inch, 0), App.Rotation(0, 0, layout.cardinal['right']))
+        }
 
-    # Import subcomponents and link based on Document.xml
-    for name, _ in subcomponents:
-        print(f"Processing subcomponent: {name}")
-        fcstd_path = os.path.join(output_dir, f"{name}.fcstd")
-        if os.path.exists(fcstd_path):
-            with zipfile.ZipFile(fcstd_path, 'r') as zf:
-                with zf.open('Document.xml') as xml_file:
-                    tree = ET.parse(xml_file)
-                    root = tree.getroot()
+    is_mem = True
+    if is_mem:
+        #master_doc = App.newDocument("IsotopeSeparation")
+        #App.ActiveDocument.openTransaction("Create Master")
+        for name, create_func in subcomponents:
+            obj = None
+            is_collect = False
+            try:
+                obj = create_func(baseplate)
+                if obj:
+                    #if isinstance(obj, list):
+                    #    obj = obj[0]  # Take the first object if a list is returned
+                    #created_objects[name] = obj
+                    print(f"Created {name}: {obj.Label} at {obj.Placement.Base}", flush=True)
+                    is_collect = True
+                    # Add to baseplate hierarchy if supported
+                    #if hasattr(baseplate, 'ChildObjects'):
+                   #     baseplate.ChildObjects = baseplate.ChildObjects + [obj]
+                else:
+                    print(f"Warning: No object created for {name}")
+            except Exception as e:
+                print(f"Error creating {name}: {e}", flush=True)
+        #    App.ActiveDocument.recompute()  # Recompute after each addition to ensure consistency
+            if is_collect:
+                del obj
+                gc.collect()  # Free memory periodically
+        App.ActiveDocument.recompute()  # Recompute after each addition to ensure consistency
+    else:
+        '''
+            TODO: FIGURE OUT HOW TO STICH TOGETHER PROPERLY
+        '''
+        output_dir = os.path.join(script_dir, 'output_components')
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
 
-                    # Extract objects with types and touched status from <Objects>
-                    objects_with_types = {}
-                    for obj in root.find('.//Objects').findall('Object'):
-                        obj_name = obj.get('name')
-                        if obj_name:
-                            objects_with_types[obj_name] = {
-                                'type': obj.get('type'),
-                                'touched': obj.get('Touched', '0') == '1'
-                            }
-                    print(f"Objects with types: {objects_with_types}")
+        main_component_name_map = {}
 
-                    # Extract labels from <ObjectData>
-                    objects_with_labels = {}
-                    for obj in root.find('.//ObjectData').findall('Object'):
-                        obj_name = obj.get('name')
-                        label_elem = obj.find('.//Property[@name="Label"]/String')
-                        label = label_elem.get('value') if label_elem is not None else None
-                        if obj_name and obj_name in objects_with_types:
-                            objects_with_labels[obj_name] = label
-                            print(f"Object {obj_name}: Label={label}, Type={objects_with_types[obj_name]['type']}, Touched={objects_with_types[obj_name]['touched']}")
+        # Generate individual files
+        for name, create_func in subcomponents:
+            doc = App.newDocument(name)
+            App.ActiveDocument.openTransaction(f"Create {name}")
+            bp = layout.baseplate(base_dx, base_dy, base_dz, x=x, y=y, angle=angle, gap=gap, mount_holes=mount_holes)
+            baseplate_group = doc.addObject("App::DocumentObjectGroup", "BaseplateGroup")
+            main_obj = create_func(bp)
+            if main_obj:
+                if isinstance(main_obj, list):
+                    main_obj = main_obj[0]  # Take the first object if a list is returned
+                print(f"Created primary object for {name}: {main_obj.Label} (Name: {main_obj.Name})")
+                main_component_name_map[name] = main_obj.Name
+                baseplate_group.addObject(main_obj)
+            else:
+                print(f"Warning: No primary object created for {name}")
+            doc.recompute()  # Single recompute
+            fcstd_path = os.path.join(output_dir, f"{name}.fcstd")
+            doc.saveAs(fcstd_path)  # Save with explicit path
+            # Ensure save is complete
+            import time
+            time.sleep(1)  # Brief delay to allow file write
+            App.ActiveDocument.commitTransaction()
+            App.closeDocument(name)
+            del bp, baseplate_group, main_obj, doc  # Clear references
+            gc.collect()
 
-                    # Determine the primary object with improved heuristic
-                    target_name = None
-                    for obj_name, attrs in objects_with_types.items():
-                        if obj_name == "Baseplate" or "Mount_Hole" in obj_name or "Hole" in obj_name:
-                            continue
-                        if attrs['type'] in ["Part::FeaturePython", "Part::Box", "Part::Cylinder"]:
-                            if main_component_name_map[name] == obj_name:
-                                target_name = obj_name
-                                break
-                    if not target_name:
-                        print(f"Warning: No suitable primary object found in {name}.fcstd")
-                        for obj_name, attrs in objects_with_types.items():
-                            if attrs['type'] in ["Part::FeaturePython", "Part::Box", "Part::Cylinder"] and not ("Mount_Hole" in obj_name or "Hole" in obj_name):
-                                target_name = obj_name
-                                print(f"Fallback: Linking {target_name} as primary object")
-                                break
+        # Create master document
+        master_doc = App.newDocument("IsotopeSeparation")
+        App.ActiveDocument.openTransaction("Create Master")
+        master_baseplate = master_doc.addObject("Part::FeaturePython", "Baseplate")
+        ECDL_isolator_baseplate(master_baseplate)
+        master_doc.recompute()
 
-                    # Open document and link the target object
-                    doc = App.openDocument(fcstd_path)
-                    if doc:
-                        print(f"Objects in {name}.fcstd: {[obj.Name for obj in doc.Objects]}")
-                        target_obj = doc.getObject(target_name)
-                        if target_obj:
-                            # Ensure document is saved and recomputed
-                            doc.saveAs(fcstd_path)
-                            print(f"Document {doc.Name} saved to {fcstd_path}")
-                            # Recompute until no longer touched or limit attempts
-                            max_recompute_attempts = 5
-                            for attempt in range(max_recompute_attempts):
-                                doc.recompute(None, True)
-                                touched_objects = [obj for obj in doc.Objects if hasattr(obj, 'touched') and getattr(obj, 'touched', False)]
-                                if not touched_objects:
-                                    break
-                                print(f"Attempt {attempt + 1}/{max_recompute_attempts}: {len(touched_objects)} touched objects remain")
-                                time.sleep(0.5)  # Brief delay to allow FreeCAD to process
+        # Define placements
+        placements = {
+            "SHG_588nm_to_294nm": App.Placement(App.Vector(0, input_y_588nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "Beam_294nm": App.Placement(App.Vector(0.5 * layout.inch, input_y_588nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "Cooling_294nm": App.Placement(App.Vector(3 * layout.inch, 3 * layout.inch, 0), App.Rotation(0, 0, 90)),
+            "Photoionization_422nm": App.Placement(App.Vector(1 * layout.inch, input_y_850nm_2, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "Repumping_866nm": App.Placement(App.Vector(gap + 0.5 * layout.inch, input_y_850nm, 0), App.Rotation(0, 0, 90)),
+            "Cooling_397nm": App.Placement(App.Vector(4 * layout.inch, input_y_405nm_1, 0), App.Rotation(0, 0, 90)),
+            "Repumping_403nm": App.Placement(App.Vector(gap + 1 * layout.inch, input_y_405nm_2, 0), App.Rotation(0, 0, 90)),
+            "AOM_397nm": App.Placement(App.Vector(4 * layout.inch + 0.5 * layout.inch, input_y_405nm_1, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "AOM_866nm": App.Placement(App.Vector(gap + 0.5 * layout.inch + 0.5 * layout.inch, input_y_850nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "AOM_403nm": App.Placement(App.Vector(gap + 1 * layout.inch + 0.5 * layout.inch, input_y_405nm_2, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "AOM_294nm": App.Placement(App.Vector(0.5 * layout.inch + 0.5 * layout.inch, input_y_588nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "Mirror_866nm": App.Placement(App.Vector(gap + 0.5 * layout.inch + 1 * layout.inch, input_y_850nm, 0), App.Rotation(0, 0, layout.turn['up-right'])),
+            "Mirror_294nm": App.Placement(App.Vector(0.5 * layout.inch + 1 * layout.inch, input_y_588nm, 0), App.Rotation(0, 0, layout.turn['up-right'])),
+            "StepMotor_397nm": App.Placement(App.Vector(1.5 * layout.inch, input_y_405nm_1, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "StepMotor_866nm": App.Placement(App.Vector(1.5 * layout.inch, input_y_850nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "StepMotor_403nm": App.Placement(App.Vector(1.5 * layout.inch, input_y_405nm_2, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "StepMotor_294nm": App.Placement(App.Vector(1.5 * layout.inch, input_y_588nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "PMTArray": App.Placement(App.Vector(base_dx - gap, 0, 0), App.Rotation(0, 0, layout.cardinal['left'])),
+            "FPGA": App.Placement(App.Vector(4.5 * layout.inch, 1.5 * layout.inch, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "MSAE_Cavity": App.Placement(App.Vector(3 * layout.inch, 3.5 * layout.inch, 0), App.Rotation(0, 0, layout.cardinal['right'])),
+            "ICPMS_Port": App.Placement(App.Vector(2.5 * layout.inch, 3 * layout.inch, 0), App.Rotation(0, 0, layout.cardinal['right']))
+        }
+        linking = False
+
+        # Import subcomponents and link based on Document.xml
+        for name, _ in subcomponents:
+            print(f"Processing subcomponent from file: {name}")
+            fcstd_path = os.path.join(output_dir, f"{name}.fcstd")
+
+            if os.path.exists(fcstd_path):
+                if not linking:
+                    temp_doc = App.openDocument(fcstd_path)
+                    new_obj = None
+                    primary_obj_name = main_component_name_map.get(name)
+                    if primary_obj_name:
+                        primary_obj = temp_doc.getObject(primary_obj_name)
+                        if primary_obj:
+                            # Copy the object to the master document, including dependencies
+                            new_obj = master_doc.copyObject(primary_obj, True)
+                            # Adjust placement if defined
+                            if name in placements:
+                                new_obj.Placement = placements[name]
                             else:
-                                print(f"Warning: {len(touched_objects)} objects still touched after {max_recompute_attempts} attempts")
+                                print(f"Warning: No placement defined for {name}, using original placement")
+                            # Optionally add to baseplate hierarchy (if supported)
+                            if hasattr(baseplate, 'ChildObjects'):
+                                baseplate.ChildObjects += [new_obj]
 
-                            # Reopen document to ensure a clean state
-                            App.closeDocument(doc.Name)
-                            gc.collect()
-                            doc = App.openDocument(fcstd_path)
-                            doc.recompute(None, True)
+                            '''
+                                if hasattr(obj, "ChildObjects"):
+                                    for child in obj.ChildObjects:
+                                        if hasattr(child, 'BasePlacement') and hasattr(child, 'RelativePlacement'):
+                                            child.BasePlacement.Base = obj.BasePlacement.Base + child.RelativePlacement.Base
+                                            if hasattr(child, "Angle"):
+                                                obj.BasePlacement.Rotation = App.Rotation(App.Vector(0, 0, 1), obj.Angle)
+                                            else:
+                                                child.BasePlacement = App.Placement(child.BasePlacement.Base, obj.BasePlacement.Rotation, -child.RelativePlacement.Base)
+                                                child.BasePlacement.Rotation = child.BasePlacement.Rotation.multiply(child.RelativePlacement.Rotation)
+                                            self.needs_recompute = True  # Mark for recompute
+                                if hasattr(obj, "RelativeObjects"):
+                                    for child in obj.RelativeObjects:
+                                        if hasattr(child, 'BasePlacement') and hasattr(child, 'RelativePlacement'):
+                                            child.BasePlacement.Base = obj.BasePlacement.Base + child.RelativePlacement.Base
+                                            self.needs_recompute = True  # Mark for recompute
+                            '''
 
-                            link_name = f"Link_{name}_{target_name}"
-                            print(f"Linking {link_name} from {target_name}")
-                            link = master_doc.addObject("App::Link", link_name)
-                            try:
-                                link.LinkedObject = (target_obj, [])
-                                if name in placements:
-                                    link.Placement = placements[name]
-                                else:
-                                    print(f"Warning: No placement defined for {name}, using default")
-                            except AttributeError as e:
-                                print(f"Error setting link attributes: {e}")
-                            except RuntimeError as e:
-                                print(f"Error linking object: {e}")
+                            #baseplate.ViewProvider.updateData(new_obj, "BasePlacement")
                             master_doc.recompute()
                         else:
-                            print(f"Warning: Object {target_name} not found in {name}.fcstd after XML parse")
-                        App.closeDocument(name)
-                        gc.collect()
-        else:
-            print(f"Warning: Failed to open document {name}.fcstd")
+                            print(f"Warning: Object {primary_obj_name} not found in {fcstd_path}")
+                    else:
+                        print(f"Warning: No primary object name defined for {name}")
+                    del temp_doc, new_obj
+                    gc.collect()
+                else:
+                    # Linking logic remains unchanged (use previous linking code)
+                    with zipfile.ZipFile(fcstd_path, 'r') as zf:
+                        with zf.open('Document.xml') as xml_file:
+                            tree = ET.parse(xml_file)
+                            root = tree.getroot()
 
-    # Force save to ensure document state
-    #master_doc.save()
-    master_doc.saveAs(os.path.join(output_dir, "IsotopeSeparation.fcstd"))
-    App.closeDocument("IsotopeSeparation")
+                            objects_with_types = {obj.get('name'): {'type': obj.get('type'), 'touched': obj.get('Touched', '0') == '1'}
+                                                for obj in root.find('.//Objects').findall('Object') if obj.get('name')}
+                            print(f"Objects with types: {objects_with_types}")
+
+                            objects_with_labels = {obj.get('name'): obj.find('.//Property[@name="Label"]/String').get('value')
+                                                 for obj in root.find('.//ObjectData').findall('Object')
+                                                 if obj.get('name') and obj.find('.//Property[@name="Label"]/String') is not None}
+
+                            target_name = None
+                            for obj_name, attrs in objects_with_types.items():
+                                if obj_name == "Baseplate" or "Mount_Hole" in obj_name or "Hole" in obj_name:
+                                    continue
+                                if attrs['type'] in ["Part::FeaturePython", "Part::Box", "Part::Cylinder"]:
+                                    if main_component_name_map[name] == obj_name:
+                                        target_name = obj_name
+                                        break
+                            if not target_name:
+                                print(f"Warning: No suitable primary object found in {name}.fcstd")
+                                for obj_name, attrs in objects_with_types.items():
+                                    if attrs['type'] in ["Part::FeaturePython", "Part::Box", "Part::Cylinder"] and not ("Mount_Hole" in obj_name or "Hole" in obj_name):
+                                        target_name = obj_name
+                                        print(f"Fallback: Linking {target_name} as primary object")
+                                        break
+
+                            target_obj = doc.getObject(target_name)
+                            if target_obj:
+                                doc.recompute()
+                                link_name = f"Link_{name}_{target_name}"
+                                print(f"Linking {link_name} from {target_name}")
+                                link = master_doc.addObject("App::Link", link_name)
+                                try:
+                                    link.LinkedObject = (target_obj, [])
+                                    if name in placements:
+                                        link.Placement = placements[name]
+                                    else:
+                                        print(f"Warning: No placement defined for {name}, using default")
+                                except (AttributeError, RuntimeError) as e:
+                                    print(f"Error linking object: {e}")
+                                master_doc.recompute()
+                            App.closeDocument(doc.Name)
+                            del doc, target_obj
+                            gc.collect()
+            else:
+                print(f"Warning: Failed to open document {name}.fcstd")
+
+        
+        # Force save to ensure document state
+        #master_doc.save()
+        master_doc.saveAs(os.path.join(output_dir, "IsotopeSeparation.fcstd"))
+        App.closeDocument("IsotopeSeparation")
 
 if is_headless:
-    if __name__ == "__main__":
-        App.newDocument("IsotopeSeparation")
-        App.ActiveDocument.openTransaction("Batch Object Creation")
-        isotope_separation_baseplate()
-        App.ActiveDocument.commitTransaction()
-        App.ActiveDocument.recompute()
+    FreeCADGui.showMainWindow()
+    mw = FreeCADGui.getMainWindow()
+    mw.hide()
+
+    App.newDocument("IsotopeSeparation")
+    App.ActiveDocument.openTransaction("Batch Object Creation")
+    isotope_separation_baseplate()
+    App.ActiveDocument.commitTransaction()
+    App.ActiveDocument.recompute()
+    App.getDocument("IsotopeSeparation").saveAs("PyOpticL/output.fcstd")
+    App.closeDocument("IsotopeSeparation")
 else:
     if __name__ == "__main__":
         isotope_separation_baseplate()

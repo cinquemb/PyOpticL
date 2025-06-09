@@ -4453,49 +4453,64 @@ class square_mirror:
         obj.Shape = part
 
 
+'''
+try:
+    import Draft
+    has_gui = True
+    print("HAS GUI")
+except ImportError:
+    has_gui = False  # Assume headless if Draft is unavailable
+    print("FAIL GUI")
+'''    
+has_gui = True
+
 class ViewProvider:
     def __init__(self, obj):
         """Initialize the view provider with a safe object reference."""
         obj.Proxy = self
         self.Object = None  # Initialize as None, will be set later if available
         self.needs_recompute = False  # Flag to track recompute necessity
-        if hasattr(obj, 'Object') and obj.Object:
+        if has_gui and hasattr(obj, 'Object') and obj.Object:
             self.Object = obj.Object
+        else:
+            print("Warning: GUI not available, running in headless mode.", flush=True)
 
     def attach(self, obj):
         """Attach the view provider to the object, setting the reference if needed."""
         if not hasattr(self, 'Object'):
-            if hasattr(obj, 'Object') and obj.Object:
+            if has_gui and hasattr(obj, 'Object') and obj.Object:
                 self.Object = obj.Object
             else:
-                print("Warning: attach called with no Object available.", flush=True)
+                print("Warning: attach called with no GUI or Object available.", flush=True)
                 return
         return
 
     def getDefaultDisplayMode(self):
-        """Return the default display mode."""
-        return "Shaded"
+        """Return the default display mode, only if GUI is available."""
+        if has_gui:
+            return "Shaded"
+        return None  # No display mode in headless
 
     def onDelete(self, feature, subelements):
         """Handle object deletion, ensuring safe removal of children."""
-        if hasattr(feature, 'Object') and feature.Object:
+        if has_gui and hasattr(feature, 'Object') and feature.Object:
             if hasattr(feature.Object, "ParentObject") and feature.Object.ParentObject is not None:
                 return False
             if hasattr(feature.Object, "ChildObjects"):
                 for obj in feature.Object.ChildObjects:
                     App.ActiveDocument.removeObject(obj.Name)
         return True
-    
+
     def updateData(self, obj, prop):
         """Update object placement and child properties safely."""
         if not hasattr(self, 'Object'):
-            if hasattr(obj, 'Object') and obj.Object:
+            if has_gui and hasattr(obj, 'Object') and obj.Object:
                 self.Object = obj.Object
             else:
-                print("Warning: updateData called with no Object available.", flush=True)
+                print("Warning: updateData called with no GUI or Object available.", flush=True)
                 return
 
-        if str(prop) == "BasePlacement":
+        if has_gui and str(prop) == "BasePlacement":
             if hasattr(obj, 'Baseplate') and obj.Baseplate is not None:
                 try:
                     obj.Placement.Base = obj.BasePlacement.Base + obj.Baseplate.Placement.Base
@@ -4523,52 +4538,54 @@ class ViewProvider:
                     if hasattr(child, 'BasePlacement') and hasattr(child, 'RelativePlacement'):
                         child.BasePlacement.Base = obj.BasePlacement.Base + child.RelativePlacement.Base
                         self.needs_recompute = True  # Mark for recompute
-        elif str(prop) == "Angle":
+        elif has_gui and str(prop) == "Angle":
             if hasattr(obj, 'BasePlacement'):
                 obj.BasePlacement.Rotation = App.Rotation(App.Vector(0, 0, 1), obj.Angle)
                 self.needs_recompute = True  # Mark for recompute
         return
-    
+
     def onChanged(self, vp, prop):
         """Handle property changes to trigger recompute if needed."""
-        if prop == "needs_recompute" and self.needs_recompute:
+        if has_gui and prop == "needs_recompute" and self.needs_recompute:
             App.ActiveDocument.recompute()
             self.needs_recompute = False  # Reset flag
 
     def claimChildren(self):
         """Safely claim child objects, returning an empty list if Object is unavailable."""
-        if hasattr(self, 'Object') and self.Object and hasattr(self.Object, "ChildObjects"):
+        if has_gui and hasattr(self, 'Object') and self.Object and hasattr(self.Object, "ChildObjects"):
             return self.Object.ChildObjects
         return []
 
     def getIcon(self):
-        """Return the icon for the view provider."""
-        return """
-            /* XPM */
-            static char *_e94ebdf19f64588ceeb5b5397743c6amoxjrynTrPg9Fk5U[] = {
-            /* columns rows colors chars-per-pixel */
-            "16 16 2 1 ",
-            "  c None",
-            "& c red",
-            /* pixels */
-            "                ",
-            "  &&&&&&&&&&&&  ",
-            "  &&&&&&&&&&&&  ",
-            "  &&&&&&&&&&&&  ",
-            "  &&&&&&&&&&&&  ",
-            "      &&&&      ",
-            "      &&&&      ",
-            "      &&&&      ",
-            "      &&&&      ",
-            "      &&&&      ",
-            "      &&&&      ",
-            "      &&&&      ",
-            "      &&&&      ",
-            "      &&&&      ",
-            "      &&&&      ",
-            "                "
-            };
-            """
+        """Return the icon for the view provider, only if GUI is available."""
+        if has_gui:
+            return """
+                /* XPM */
+                static char *_e94ebdf19f64588ceeb5b5397743c6amoxjrynTrPg9Fk5U[] = {
+                /* columns rows colors chars-per-pixel */
+                "16 16 2 1 ",
+                "  c None",
+                "& c red",
+                /* pixels */
+                "                ",
+                "  &&&&&&&&&&&&  ",
+                "  &&&&&&&&&&&&  ",
+                "  &&&&&&&&&&&&  ",
+                "  &&&&&&&&&&&&  ",
+                "      &&&&      ",
+                "      &&&&      ",
+                "      &&&&      ",
+                "      &&&&      ",
+                "      &&&&      ",
+                "      &&&&      ",
+                "      &&&&      ",
+                "      &&&&      ",
+                "      &&&&      ",
+                "      &&&&      ",
+                "                "
+                };
+                """
+        return ""  # No icon in headless
 
     def __getstate__(self):
         """Avoid serialization of the view provider."""

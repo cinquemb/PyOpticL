@@ -4,7 +4,7 @@ import sys
 import os
 import numpy as np
 
-is_headless = False
+is_headless = True
 # Redirect output to file to reduce memory buffering
 sys.stdout = open('debug_output.txt', 'w')
 
