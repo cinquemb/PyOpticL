@@ -282,6 +282,7 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
                                  gap=gap, mount_holes=mount_holes)
     print(f"Baseplate dimensions: dx={base_dx}, dy={base_dy}, dz={base_dz}", flush=True)
 
+    ## GROUP 1 ##
     # SHG for 294 nm from 588 nm (for Ga-68⁺ cooling)
     beam_588nm = baseplate.add_beam_path(x=0, y=input_y_588nm, angle=layout.cardinal['right'])
     print(f"Beam_588nm: Position={beam_588nm.Placement.Base}", flush=True)
@@ -296,11 +297,23 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
     beam_294nm = laser_cooling_subsystem(baseplate, ion_trap_x=3 * layout.inch, ion_trap_y=3 * layout.inch,
                                         thumbscrews=True, littrow_angle=littrow_angle_294nm, beam_path=beam_294nm)
     print(f"Beam_294nm after cooling: Position={beam_294nm.Placement.Base}", flush=True)
+    baseplate.place_element_along_beam("AOM 294nm", aom, beam_294nm,
+                                      beam_index=0b1, distance=0.5 * layout.inch, angle=layout.cardinal['right'])
+    # Add mirrors to direct beams to the trap
+    baseplate.place_element_along_beam("Mirror 294nm", optomech.circular_mirror, beam_294nm,
+                                      beam_index=0b1, distance=1 * layout.inch, angle=layout.turn['up-right'],
+                                      mount_type=optomech.mirror_mount_k05s1)
 
-   # '''
+    
+
+
+    ## GROUP 2 ##
     # Photoionization for Ca⁺ at 422 nm
     beam_422nm = tune_and_shg_422nm(baseplate)
     print(f"Beam_422nm after photoionization: Position={beam_422nm.Placement.Base}", flush=True)
+
+
+    ## GROUP 3 ##
 
     # SHG for 866 nm from 850 nm (for Ca⁺ repumping)
     beam_866nm = generate_866nm_subsystem(baseplate)
@@ -309,35 +322,39 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
     beam_866nm = repump_subsystem_ECDL_mirrored(baseplate, beam=beam_866nm, x=gap + 0.5 * layout.inch, y=input_y_850nm,
                                                thumbscrews=True, littrow_angle=littrow_angle_866nm)
     print(f"Beam_866nm after repump_subsystem: Position={beam_866nm.Placement.Base}", flush=True)
+    baseplate.place_element_along_beam("AOM 866nm", aom, beam_866nm,
+                                      beam_index=0b1, distance=0.5 * layout.inch, angle=layout.cardinal['right'])
+    # Add mirror to direct beams to the trap
+    baseplate.place_element_along_beam("Mirror 866nm", optomech.circular_mirror, beam_866nm,
+                                      beam_index=0b1, distance=1 * layout.inch, angle=layout.turn['up-right'],
+                                      mount_type=optomech.mirror_mount_k05s1)
 
+    
+
+    ## GROUP 4 ##
     # Ca⁺ cooling at 397 nm
     beam_397nm = laser_cooling_subsystem(baseplate, ion_trap_x=4 * layout.inch, ion_trap_y=input_y_405nm_1,
                                         thumbscrews=True, littrow_angle=littrow_angle_397nm)
     print(f"Beam_397nm after cooling: Position={beam_397nm.Placement.Base}", flush=True)
+    baseplate.place_element_along_beam("AOM 397nm", aom, beam_397nm,
+                                      beam_index=0b1, distance=0.5 * layout.inch, angle=layout.cardinal['right'])
 
+    
+    ## GROUP 5 ##
     # Ga-68⁺ repumping at 403 nm
     beam_403nm = repump_subsystem_ECDL_mirrored(baseplate, beam=None, x=gap + 1 * layout.inch, y=input_y_405nm_2,
                                                thumbscrews=True, littrow_angle=littrow_angle_403nm)
     print(f"Beam_403nm after repump: Position={beam_403nm.Placement.Base}", flush=True)
-
-    # Add AOMs for beam modulation
-    baseplate.place_element_along_beam("AOM 397nm", aom, beam_397nm,
-                                      beam_index=0b1, distance=0.5 * layout.inch, angle=layout.cardinal['right'])
-    baseplate.place_element_along_beam("AOM 866nm", aom, beam_866nm,
-                                      beam_index=0b1, distance=0.5 * layout.inch, angle=layout.cardinal['right'])
     baseplate.place_element_along_beam("AOM 403nm", aom, beam_403nm,
                                       beam_index=0b1, distance=0.5 * layout.inch, angle=layout.cardinal['right'])
-    baseplate.place_element_along_beam("AOM 294nm", aom, beam_294nm,
-                                      beam_index=0b1, distance=0.5 * layout.inch, angle=layout.cardinal['right'])
+
+    
+    
+    
 
     # Add mirrors to direct beams to the trap
-    baseplate.place_element_along_beam("Mirror 866nm", optomech.circular_mirror, beam_866nm,
-                                      beam_index=0b1, distance=1 * layout.inch, angle=layout.turn['up-right'],
-                                      mount_type=optomech.mirror_mount_k05s1)
-    baseplate.place_element_along_beam("Mirror 294nm", optomech.circular_mirror, beam_294nm,
-                                      beam_index=0b1, distance=1 * layout.inch, angle=layout.turn['up-right'],
-                                      mount_type=optomech.mirror_mount_k05s1)
-
+    
+    '''
     # Add stepper motors for beam alignment
     baseplate.place_element("Step Motor 397nm", stepper_motor, x=1.5 * layout.inch, y=input_y_405nm_1,
                            angle=layout.cardinal['right'])
@@ -356,7 +373,7 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
                            angle=layout.cardinal['right'])
     baseplate.place_element("ICP-MS Port", ion_injection_port, x=2.5 * layout.inch, y=3 * layout.inch,
                            angle=layout.cardinal['right'])
-    #'''
+    '''
 
 if is_headless:
     if __name__ == "__main__":
