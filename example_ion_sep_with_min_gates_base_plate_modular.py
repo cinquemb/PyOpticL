@@ -28,6 +28,14 @@ sys.path.append(subsystem_dir)
 sys.path.append(module_dir)
 sys.path.append(script_dir)
 
+# Debug module existence
+print(f"Checking for modules in {subsystem_dir}:")
+for file in os.listdir(subsystem_dir):
+    print(file)
+print(f"Checking for modules in {module_dir}:")
+for file in os.listdir(module_dir):
+    print(file)
+
 print(f"sys.path: {sys.path}")
 
 from PyOpticL import layout, optomech, laser
@@ -327,7 +335,7 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
         ("ICPMS_Port", lambda bp: bp.place_element("ICP-MS Port", ion_injection_port, x=2.5 * layout.inch, y=3 * layout.inch,
                                                   angle=layout.cardinal['right']))
     ]'''
-
+    '''
     placements = {
             "SHG_588nm_to_294nm": App.Placement(App.Vector(0, input_y_588nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
             "Beam_294nm": App.Placement(App.Vector(0.5 * layout.inch, input_y_588nm, 0), App.Rotation(0, 0, layout.cardinal['right'])),
@@ -351,117 +359,112 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
             "MSAE_Cavity": App.Placement(App.Vector(3 * layout.inch, 3.5 * layout.inch, 0), App.Rotation(0, 0, layout.cardinal['right'])),
             "ICPMS_Port": App.Placement(App.Vector(2.5 * layout.inch, 3 * layout.inch, 0), App.Rotation(0, 0, layout.cardinal['right']))
         }
+        '''
 
 
 
 
     subcomponents_objs = {}
     is_mem = True
+    is_new = False
     if is_mem:
-        '''
-        #master_doc = App.newDocument("IsotopeSeparation")
-        #App.ActiveDocument.openTransaction("Create Master")
-        for name, create_func in subcomponents:
-            is_collect = False
-            try:
-                subcomponents_objs[name] = create_func(baseplate)
-                if subcomponents_objs[name]:
-                    #if isinstance(obj, list):
-                    #    obj = obj[0]  # Take the first object if a list is returned
-                    #created_objects[name] = obj
-                    print(f"Created {name}: {subcomponents_objs[name].Label} at {subcomponents_objs[name].Placement.Base}", flush=True)
-                    is_collect = True
-                    # Add to baseplate hierarchy if supported
-                    if hasattr(baseplate, 'ChildObjects'):
-                        baseplate.ChildObjects = baseplate.ChildObjects + [subcomponents_objs[name]]
-                else:
-                    print(f"Warning: No object created for {name}")
-            except Exception as e:
-                print(f"Error creating {name}: {e}", flush=True)
-        #    App.ActiveDocument.recompute()  # Recompute after each addition to ensure consistency
-        #    if is_collect:
-        #        del obj
-        #        gc.collect()  # Free memory periodically
-        #App.getDocument("IsotopeSeparation").recompute()  # Recompute after each addition to ensure consistency
-        '''
+        if is_new:
+            #master_doc = App.newDocument("IsotopeSeparation")
+            #App.ActiveDocument.openTransaction("Create Master")
+            for name, create_func in subcomponents:
+                is_collect = False
+                try:
+                    subcomponents_objs[name] = create_func(baseplate)
+                    if subcomponents_objs[name]:
+                        #if isinstance(obj, list):
+                        #    obj = obj[0]  # Take the first object if a list is returned
+                        #created_objects[name] = obj
+                        print(f"Created {name}: {subcomponents_objs[name].Label} at {subcomponents_objs[name].Placement.Base}", flush=True)
+                        is_collect = True
+                        # Add to baseplate hierarchy if supported
+                        if hasattr(baseplate, 'ChildObjects'):
+                            baseplate.ChildObjects = baseplate.ChildObjects + [subcomponents_objs[name]]
+                    else:
+                        print(f"Warning: No object created for {name}")
+                except Exception as e:
+                    print(f"Error creating {name}: {e}", flush=True)
+            #    App.ActiveDocument.recompute()  # Recompute after each addition to ensure consistency
+            #    if is_collect:
+            #        del obj
+            #        gc.collect()  # Free memory periodically
+            App.getDocument("IsotopeSeparation").recompute()  # Recompute after each addition to ensure consistency
+        else:
+            ## GROUP 1 ##
+            # SHG for 294 nm from 588 nm (for Ga-68⁺ cooling)
+            beam_588nm = baseplate.add_beam_path(x=0, y=input_y_588nm, angle=layout.cardinal['right'])
+            print(f"Beam_588nm: Position={beam_588nm.Placement.Base}", flush=True)
+            shg_element = baseplate.place_element_along_beam("SHG 588nm to 294nm", optomech.cube_splitter, beam_588nm,
+                                                            beam_index=0b1, distance=0.5 * layout.inch, angle=layout.cardinal['right'],
+                                                            mount_type=optomech.skate_mount)
+            del beam_588nm
+            gc.collect()
+            print(f"SHG 588nm to 294nm: Position={shg_element.Placement.Base}", flush=True)
+            del shg_element
+            gc.collect()
+            beam_294nm = baseplate.add_beam_path(x=0.5 * layout.inch, y=input_y_588nm, angle=layout.cardinal['right'])
+            print(f"Beam_294nm: Position={beam_294nm.Placement.Base}", flush=True)
 
-        ## GROUP 1 ##
-        # SHG for 294 nm from 588 nm (for Ga-68⁺ cooling)
-        beam_588nm = baseplate.add_beam_path(x=0, y=input_y_588nm, angle=layout.cardinal['right'])
-        print(f"Beam_588nm: Position={beam_588nm.Placement.Base}", flush=True)
-        shg_element = baseplate.place_element_along_beam("SHG 588nm to 294nm", optomech.cube_splitter, beam_588nm,
-                                                        beam_index=0b1, distance=0.5 * layout.inch, angle=layout.cardinal['right'],
-                                                        mount_type=optomech.skate_mount)
-        print(f"SHG 588nm to 294nm: Position={shg_element.Placement.Base}", flush=True)
-        beam_294nm = baseplate.add_beam_path(x=0.5 * layout.inch, y=input_y_588nm, angle=layout.cardinal['right'])
-        print(f"Beam_294nm: Position={beam_294nm.Placement.Base}", flush=True)
+            # Ga-68⁺ cooling at 294 nm
+            beam_294nm = laser_cooling_subsystem(baseplate, ion_trap_x=3 * layout.inch, ion_trap_y=3 * layout.inch,
+                                                thumbscrews=True, littrow_angle=littrow_angle_294nm, beam_path=beam_294nm)
+            print(f"Beam_294nm after cooling: Position={beam_294nm.Placement.Base}", flush=True)
 
-        # Ga-68⁺ cooling at 294 nm
-        beam_294nm = laser_cooling_subsystem(baseplate, ion_trap_x=3 * layout.inch, ion_trap_y=3 * layout.inch,
-                                            thumbscrews=True, littrow_angle=littrow_angle_294nm, beam_path=beam_294nm)
-        print(f"Beam_294nm after cooling: Position={beam_294nm.Placement.Base}", flush=True)
-      #  baseplate.place_element_along_beam("AOM 294nm", aom, beam_294nm,
-       #                                   beam_index=0b1, distance=0.5 * layout.inch, angle=layout.cardinal['right'])
-        # Add mirrors to direct beams to the trap
-        #baseplate.place_element_along_beam("Mirror 294nm", optomech.circular_mirror, beam_294nm,
-         #                                 beam_index=0b1, distance=1 * layout.inch, angle=layout.turn['up-right'],
-          #                                mount_type=optomech.mirror_mount_k05s1)
+            baseplate.place_element_along_beam("AOM 294nm", aom, beam_294nm, beam_index=0b1, distance=0.5 * layout.inch, angle=layout.cardinal['right'])
+            # Add mirrors to direct beams to the trap
+            baseplate.place_element_along_beam("Mirror 294nm", optomech.circular_mirror, beam_294nm, beam_index=0b1, distance=1 * layout.inch, angle=layout.turn['up-right'], mount_type=optomech.mirror_mount_k05s1)
 
-      #  del beam_588nm, shg_element,  beam_294nm
-      #  gc.collect()
+            #App.getDocument("IsotopeSeparation").recompute()
+            del beam_294nm
+            gc.collect()
 
-        
-
-        '''
-        ## GROUP 2 ##
-        # Photoionization for Ca⁺ at 422 nm
-        beam_422nm = tune_and_shg_422nm(baseplate)
-        print(f"Beam_422nm after photoionization: Position={beam_422nm.Placement.Base}", flush=True)
-       # del beam_422nm
-      #  gc.collect()
+            
+            ## GROUP 2 ##
+            # Photoionization for Ca⁺ at 422 nm
+            beam_422nm = tune_and_shg_422nm(baseplate)
+            print(f"Beam_422nm after photoionization: Position={beam_422nm.Placement.Base}", flush=True)
+            #App.getDocument("IsotopeSeparation").recompute()
+            del beam_422nm
+            gc.collect()
 
 
-        ## GROUP 3 ##
+            ## GROUP 3 ##
 
-        # SHG for 866 nm from 850 nm (for Ca⁺ repumping)
-        beam_866nm = generate_866nm_subsystem(baseplate)
-        print(f"Beam_866nm after generation: Position={beam_866nm.Placement.Base}", flush=True)
-        # Ca⁺ repumping at 866 nm
-        beam_866nm = repump_subsystem_ECDL_mirrored(baseplate, beam=beam_866nm, x=gap + 0.5 * layout.inch, y=input_y_850nm,
-                                                   thumbscrews=True, littrow_angle=littrow_angle_866nm)
-        print(f"Beam_866nm after repump_subsystem: Position={beam_866nm.Placement.Base}", flush=True)
-       # baseplate.place_element_along_beam("AOM 866nm", aom, beam_866nm,
-        #                                  beam_index=0b1, distance=0.5 * layout.inch, angle=layout.cardinal['right'])
-        # Add mirror to direct beams to the trap
-     #   baseplate.place_element_along_beam("Mirror 866nm", optomech.circular_mirror, beam_866nm,
-      #                                    beam_index=0b1, distance=1 * layout.inch, angle=layout.turn['up-right'],
-       #                                   mount_type=optomech.mirror_mount_k05s1)
-        #del beam_866nm
-        #gc.collect()
+            # SHG for 866 nm from 850 nm (for Ca⁺ repumping)
+            beam_866nm = generate_866nm_subsystem(baseplate)
+            print(f"Beam_866nm after generation: Position={beam_866nm.Placement.Base}", flush=True)
+            # Ca⁺ repumping at 866 nm
+            beam_866nm = repump_subsystem_ECDL_mirrored(baseplate, beam=beam_866nm, x=gap + 0.5 * layout.inch, y=input_y_850nm, thumbscrews=True, littrow_angle=littrow_angle_866nm)
+            print(f"Beam_866nm after repump_subsystem: Position={beam_866nm.Placement.Base}", flush=True)
+            baseplate.place_element_along_beam("AOM 866nm", aom, beam_866nm, beam_index=0b1, distance=0.5 * layout.inch, angle=layout.cardinal['right'])
+            # Add mirror to direct beams to the trap
 
-        
+            baseplate.place_element_along_beam("Mirror 866nm", optomech.circular_mirror, beam_866nm, beam_index=0b1, distance=1 * layout.inch, angle=layout.turn['up-right'], mount_type=optomech.mirror_mount_k05s1)
+            del beam_866nm
+            gc.collect()
 
-        ## GROUP 4 ##
-        # Ca⁺ cooling at 397 nm
-        beam_397nm = laser_cooling_subsystem(baseplate, ion_trap_x=4 * layout.inch, ion_trap_y=input_y_405nm_1,
-                                            thumbscrews=True, littrow_angle=littrow_angle_397nm)
-        print(f"Beam_397nm after cooling: Position={beam_397nm.Placement.Base}", flush=True)
-       # baseplate.place_element_along_beam("AOM 397nm", aom, beam_397nm,
-        #                                  beam_index=0b1, distance=0.5 * layout.inch, angle=layout.cardinal['right'])
-       # del beam_397nm
-       # gc.collect()
 
-        
-        ## GROUP 5 ##
-        # Ga-68⁺ repumping at 403 nm
-        beam_403nm = repump_subsystem_ECDL_mirrored(baseplate, beam=None, x=gap + 1 * layout.inch, y=input_y_405nm_2,
-                                                   thumbscrews=True, littrow_angle=littrow_angle_403nm)
-        print(f"Beam_403nm after repump: Position={beam_403nm.Placement.Base}", flush=True)
-       # baseplate.place_element_along_beam("AOM 403nm", aom, beam_403nm,
-        #                                  beam_index=0b1, distance=0.5 * layout.inch, angle=layout.cardinal['right'])
-        #del beam_403nm
-        #gc.collect()
-        '''
+            ## GROUP 4 ##
+            # Ca⁺ cooling at 397 nm
+            beam_397nm = laser_cooling_subsystem(baseplate, ion_trap_x=4 * layout.inch, ion_trap_y=input_y_405nm_1, thumbscrews=True, littrow_angle=littrow_angle_397nm)
+            print(f"Beam_397nm after cooling: Position={beam_397nm.Placement.Base}", flush=True)
+            baseplate.place_element_along_beam("AOM 397nm", aom, beam_397nm, beam_index=0b1, distance=0.5 * layout.inch, angle=layout.cardinal['right'])
+            del beam_397nm
+            gc.collect()
+
+            
+            ## GROUP 5 ##
+            # Ga-68⁺ repumping at 403 nm
+            beam_403nm = repump_subsystem_ECDL_mirrored(baseplate, beam=None, x=gap + 1 * layout.inch, y=input_y_405nm_2, thumbscrews=True, littrow_angle=littrow_angle_403nm)
+            print(f"Beam_403nm after repump: Position={beam_403nm.Placement.Base}", flush=True)
+            baseplate.place_element_along_beam("AOM 403nm", aom, beam_403nm, beam_index=0b1, distance=0.5 * layout.inch, angle=layout.cardinal['right'])
+            #App.getDocument("IsotopeSeparation").recompute()
+            del beam_403nm
+            gc.collect()
     
     else:
         '''
