@@ -148,22 +148,13 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
     created_objects["Mirror_397nm_2"] = mirror_397nm_2
     master_doc.recompute()
 
-    
-    #TODO: NEED TO FIGURE OUT HOW TO MODIFY THIS PART TO PLACE IT ANYWHERE
-
-    tuner_403nm = baseplate.place_element_along_beam("Tuner_403nm", optomech.laser_mount_km100pm_LMR1_floating, beam_405nm, beam_index=0b11, dx=gap+5, distance=2.5 * layout.inch, angle=layout.cardinal['right'], littrow_angle=littrow_angle_403nm, drill=True)#, height_offset_in=0)
+    tuner_403nm = baseplate.place_element_along_beam("Tuner_403nm", optomech.laser_mount_km100pm_LMR1_floating, beam_405nm, beam_index=0b11, distance=2.5 * layout.inch, angle=layout.cardinal['up'], littrow_angle=littrow_angle_403nm, drill=True)#, height_offset_in=0)
     created_objects["Tuner_403nm"] = tuner_403nm
 
-    #tuner_403nm.Placement.Base = App.Vector(0, gap+5, 0)     # Set x, y, z position (dx=10 shifts it along x)
-    tuner_403nm.Placement.Rotation = App.Rotation(App.Vector(0, 0, 1), 90)  # Rotate 45° around z-axis
 
-    mirror_403nm_1 = baseplate.place_element_along_beam("Mirror_403nm_1", optomech.circular_mirror, beam_405nm, diameter=layout.inch/8, beam_index=0b11, distance=2 * layout.inch, angle=layout.turn['left-down'])
+    mirror_403nm_1 = baseplate.place_element_along_beam("Mirror_403nm_1", optomech.circular_mirror, beam_405nm, diameter=layout.inch/8, beam_index=0b11, distance=2.5 * layout.inch, angle=layout.turn['left-down']-10.5)
     created_objects["Mirror_403nm_1"] = mirror_403nm_1
     master_doc.recompute()
-
-
-    #mirror_403nm_2 = baseplate.place_element_along_beam("Mirror_403nm_2", optomech.circular_mirror, mirror_403nm_1, beam_index=0b11, distance=2 * layout.inch, angle=layout.cardinal['left'])
-    #created_objects["Mirror_403nm_2"] = mirror_403nm_2
 
     '''
     
