@@ -2816,6 +2816,119 @@ class laser_mount_km100pm_LMR1:
         part.Placement = obj.Placement
         obj.DrillPart = part
 
+class laser_mount_km100pm_LMR1_floating:
+    type = 'Part::FeaturePython'
+    def __init__(self, obj, drill=True, slot_length=0, countersink=False, counter_depth=3, arm_thickness=8, 
+                 arm_clearance=2, stage_thickness=6, stage_length=20, mat_thickness=0, littrow_angle=53.43, dx=0):
+        obj.Proxy = self
+        ViewProvider(obj.ViewObject)
+
+        # Properties
+        obj.addProperty('App::PropertyBool', 'Drill').Drill = drill
+        obj.addProperty('App::PropertyLength', 'SlotLength').SlotLength = slot_length
+        obj.addProperty('App::PropertyBool', 'Countersink').Countersink = countersink
+        obj.addProperty('App::PropertyLength', 'CounterDepth').CounterDepth = counter_depth
+        obj.addProperty('App::PropertyLength', 'ArmThickness').ArmThickness = arm_thickness
+        obj.addProperty('App::PropertyLength', 'ArmClearance').ArmClearance = arm_clearance
+        obj.addProperty('App::PropertyLength', 'StageThickness').StageThickness = stage_thickness
+        obj.addProperty('App::PropertyLength', 'StageLength').StageLength = stage_length
+        obj.addProperty('App::PropertyLength', 'MatThickness').MatThickness = mat_thickness
+        obj.addProperty('App::PropertyAngle', 'LittrowAngle').LittrowAngle = littrow_angle
+        obj.addProperty('Part::PropertyPartShape', 'DrillPart')
+        
+        # Add dx as a parameter for x-offset
+        obj.addProperty('App::PropertyLength', 'DxOffset').DxOffset = dx
+
+        obj.ViewObject.ShapeColor = adapter_color
+        obj.setEditorMode('Placement', 2)
+
+        # Initial dx for optical components (relative to local origin)
+        dx = -5.334 + 2.032
+        _add_linked_object(obj, "Diode Adapter", diode_adapter_s05lm56, pos_offset=(dx, 0, 0))
+        _add_linked_object(obj, "Lens Tube", lens_tube_sm05l05, pos_offset=(dx + 1.524 + 3.812, 0, 0))
+        _add_linked_object(obj, "Lens Adapter", lens_adapter_s05tm09, pos_offset=(dx + 1.524 + 5, 0, 0))
+        _add_linked_object(obj, "Lens", mounted_lens_c220tmda, pos_offset=(dx + 1.524 + 3.167 + 5, 0, 0))
+
+        # Mount and other components with original relative offsets
+        mount = _add_linked_object(obj, "Mount KM100PM", prism_mount_km100pm, pos_offset=(2.032, 0, 0))
+        _add_linked_object(obj, "Mount", fixed_mount_smr05, pos_offset=(2.032, 0, 0), rot_offset=(90, 0, 0), drill=False)
+
+        # Littrow geometry calculations
+        gap = 23
+        lit_angle = radians(90 - obj.LittrowAngle.Value)
+        beam_angle = radians(obj.LittrowAngle.Value)
+        ref_len = gap / sin(2 * beam_angle)
+        ref_x = ref_len * cos(2 * beam_angle)
+        dx = ref_x + 12.7 * cos(lit_angle) + (6 + 3.2) * sin(lit_angle)
+        extra_x = 20 - dx
+        grating_dx = -(6 * sin(lit_angle) + 12.7 / 2 * cos(lit_angle)) - extra_x
+        mirror_dx = grating_dx - ref_x
+
+        # Position grating, PZT, and mirror with original relative offsets
+        _add_linked_object(obj, "Grating", square_grating, pos_offset=(grating_dx + 40, -1, -2.7), 
+                           rot_offset=(0, 0, 180 - obj.LittrowAngle.Value))
+        _add_linked_object(obj, "PZT", box, pos_offset=(grating_dx + 34.6 + 9.2, -5.8, -2.7), 
+                           rot_offset=(0, 0, 180 - obj.LittrowAngle.Value))
+        _add_linked_object(obj, "Mirror", square_mirror, pos_offset=(mirror_dx + 36.5, gap - 3, -2.7), 
+                           rot_offset=(0, 0, -obj.LittrowAngle.Value))
+
+        # TEC and plates with adjusted relative positions
+        upper_plate = _add_linked_object(obj, "Upper Plate", km05_tec_upper_plate, pos_offset=(2.032, 0, -inch / 4 - 6.3), 
+                                         width=1.5 * inch, drill_obj=mount)
+        _add_linked_object(obj, "TEC", TEC, pos_offset=(grating_dx + 11.1, 0, -33.7), rot_offset=(90, 90, 90))
+        _add_linked_object(obj, "Lower Plate", km05_tec_lower_plate, 
+                           pos_offset=(2.032, 0, -inch / 4 - 6.3 - 4 - upper_plate.Thickness.Value), width=2.5 * inch)
+
+    def execute(self, obj):
+        dx = obj.ArmThickness.Value
+        dy = 45
+        dz = 27
+        stage_dx = obj.StageLength.Value
+        stage_dz = obj.StageThickness.Value
+
+        # Define the part shape in local coordinates
+        part = _custom_box(dx=dx, dy=dy, dz=dz - obj.ArmClearance.Value, x=0, y=4, z=obj.ArmClearance.Value)
+        part = part.fuse(_custom_box(dx=stage_dx, dy=dy, dz=dz - obj.ArmClearance.Value, 
+                                     x=0, y=4, z=dz, dir=(1, 0, -1)))
+        for ddy in [15.2, 38.1]:
+            part = part.cut(_custom_box(dx=stage_dx + dx, dy=obj.SlotLength.Value + bolt_4_40['clear_dia'], 
+                                        dz=bolt_4_40['clear_dia'], x=stage_dx, y=25.4 - ddy + 2.5, z=6.4, 
+                                        fillet=bolt_4_40['clear_dia'] / 2, dir=(-1, 0, 0)))
+            part = part.cut(_custom_box(dx=stage_dx + dx - 5 - 4, dy=obj.SlotLength.Value + bolt_4_40['head_dia'], 
+                                        dz=bolt_4_40['head_dia'], x=stage_dx, y=25.4 - ddy + 2.5, z=6.4, 
+                                        fillet=bolt_4_40['head_dia'] / 2, dir=(-1, 0, 0)))
+
+        # Additional geometry calculations
+        gap = 23
+        lit_angle = radians(90 - obj.LittrowAngle.Value)
+        beam_angle = radians(obj.LittrowAngle.Value)
+        ref_len = gap / sin(2 * beam_angle)
+        ref_x = ref_len * cos(2 * beam_angle)
+        dx2 = ref_x + 12.7 * cos(lit_angle) + (6 + 3.2) * sin(lit_angle)
+        extra_x = 18 - dx2
+        cut_x = 17.7 * cos(lit_angle)
+
+        part = part.fuse(_custom_box(dx=stage_dx + dx / 2, dy=dy, dz=stage_dz + 12.7, 
+                                     x=-dx / 2, y=4, z=dz + 12.7, dir=(1, 0, -1)))
+
+        # Adjust position relative to local origin
+        part.translate(App.Vector(dx / 2, 25.4 - 15.2 + obj.SlotLength.Value / 2, -6.4))
+
+        # Cutout for Littrow path
+        temp = _custom_box(dx=ref_len * cos(beam_angle) + 6 + 3.2 + 3, dy=dy / sin(lit_angle) + 15, dz=dz, 
+                           x=-cut_x + 5, y=-(dx - cut_x) * cos(lit_angle) - 15, z=-6 - 3.07, dir=(-1, 1, 1))
+        temp.rotate(App.Vector(-cut_x, 0, 0), App.Vector(0, 0, 1), -obj.LittrowAngle.Value)
+        temp.translate(App.Vector(-extra_x + 36, -17.7 / 2 * sin(lit_angle) - 6 * cos(lit_angle), 0.2))
+
+        part = part.cut(temp)
+        obj.Shape = part
+
+        # Bounding box for drill part
+        part = _bounding_box(obj, 3, 4, z_tol=True, min_offset=(0, 0, 0.668))
+        part.Placement = obj.Placement
+        obj.DrillPart = part
+
+
 class mount_for_km100pm:
     '''
     Adapter for mounting isomet AOMs to km100pm kinematic mount
