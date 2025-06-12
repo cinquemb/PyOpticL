@@ -2873,6 +2873,7 @@ class laser_mount_km100pm_LMR1_floating:
         dy = 45
         dz = 27
         stage_dx = obj.StageLength.Value
+        stage_dx_1 = 20
         stage_dz = obj.StageThickness.Value
 
         part = _custom_box(dx=dx, dy=dy, dz=dz-obj.ArmClearance.Value,
@@ -2917,6 +2918,7 @@ class laser_mount_km100pm_LMR1_floating:
         part = _bounding_box(obj, 3, 4, z_tol=True, min_offset=(0, 0, 0.668))
         part.Placement = obj.Placement
         obj.DrillPart = part
+
 
 
 class mount_for_km100pm:
