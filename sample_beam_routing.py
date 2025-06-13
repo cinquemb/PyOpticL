@@ -51,11 +51,11 @@ mount_holes = [
 
 def isotope_separation_baseplate(x=0, y=0, angle=0):
     # Create baseplate (10x10 inches for the grid)
-    baseplate = layout.baseplate(10 * layout.inch, 10 * layout.inch, 0.5 * layout.inch, x=x, y=y, angle=angle)
+    baseplate = layout.baseplate(15 * layout.inch, 15 * layout.inch, 0.5 * layout.inch, x=x, y=y, angle=angle)
     master_doc = App.ActiveDocument
     #master_doc.addObject(baseplate)
     #master_doc.recompute()
-    print(f"Baseplate dimensions: {10 * layout.inch} x {10 * layout.inch} x {0.5 * layout.inch}")
+    print(f"Baseplate dimensions: {15 * layout.inch} x {15 * layout.inch} x {0.5 * layout.inch}")
 
     created_objects = {}
 
@@ -67,7 +67,7 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
 
     # Littrow angles for tuned and SHG wavelengths with debug
     grating_pitch_d = 1/3600  # Lines per mm
-    grating_pitch_d_844 = 1/1800  # Lines per mm for 844 nm
+    grating_pitch_d_844 = 1/833  # Lines per mm for 844 nm
     grating_pitch_d_866 = 1/600  # Lines per mm for 866 nm
 
     # Tuned wavelengths
@@ -187,32 +187,30 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
     created_objects["Mirror_866nm_2"] = mirror_866nm_2
 
 
-    mirror_866nm_3 = baseplate.place_element_along_beam("Mirror_866nm_3", optomech.circular_mirror, beam_850nm, diameter=layout.inch/8, beam_index=0b10, distance=8.0 * layout.inch, angle=layout.turn['left-down']-5,mount_type=optomech.skate_mount)
+    mirror_866nm_3 = baseplate.place_element_along_beam("Mirror_866nm_3", optomech.circular_mirror, beam_850nm, diameter=layout.inch/8, beam_index=0b10, distance=8.0 * layout.inch, angle=layout.turn['left-down']-5.25,mount_type=optomech.skate_mount)
     created_objects["Mirror_866nm_3"] = mirror_866nm_3
 
-    master_doc.recompute()
-    '''
+    #'''
 
-
-    beam_850nm_reflected = baseplate.add_beam_path(x=2 * layout.inch, y=input_y_850nm - 0.5 * layout.inch, angle=layout.cardinal['right'])
-    created_objects["Beam_850nm_Reflected"] = beam_850nm_reflected
-
-    tuner_844nm = baseplate.place_element_along_beam("Tuner_844nm", optomech.tuning_stage, beam_850nm_reflected,
-                                                     beam_index=0b11, distance=2 * layout.inch, angle=littrow_angle_422nm)  # Note: Using 422nm angle as placeholder
+    tuner_844nm = baseplate.place_element_along_beam("Tuner_844nm", optomech.laser_mount_km100pm_LMR1_floating, beam_850nm, stage_thickness=6, stage_length=50, beam_index=0b11, distance=4 * layout.inch, angle=layout.cardinal['up'], drill=True, littrow_angle=littrow_angle_844nm)  # Note: Using 422nm angle as placeholder
     created_objects["Tuner_844nm"] = tuner_844nm
 
-    shg_844nm_to_422nm = baseplate.place_element_along_beam("SHG_844nm_to_422nm", optomech.cube_splitter, tuner_844nm,
-                                                            beam_index=0b11, distance=2 * layout.inch, angle=littrow_angle_422nm)
+   # '''
+    shg_844nm_to_422nm = baseplate.place_element_along_beam("SHG_844nm_to_422nm", optomech.cube_splitter, beam_850nm, beam_index=0b11, distance=1.5 * layout.inch,  angle=layout.cardinal['up'], mount_type=optomech.skate_mount)
     created_objects["SHG_844nm_to_422nm"] = shg_844nm_to_422nm
 
-    aom_422nm = baseplate.place_element_along_beam("AOM_422nm", aom, shg_844nm_to_422nm,
-                                                   beam_index=0b11, distance=2 * layout.inch, angle=layout.cardinal['up'])
-    created_objects["AOM_422nm"] = aom_422nm
+    #aom_422nm = baseplate.place_element_along_beam("AOM_422nm", aom, shg_844nm_to_422nm, beam_index=0b11, distance=2 * layout.inch, angle=layout.cardinal['up'])
+    #created_objects["AOM_422nm"] = aom_422nm
+    
 
-    mirror_422nm_1 = baseplate.place_element_along_beam("Mirror_422nm_1", optomech.circular_mirror, aom_422nm,
-                                                        beam_index=0b11, distance=2 * layout.inch, angle=layout.cardinal['up'])
+    #'''
+
+    mirror_422nm_1 = baseplate.place_element_along_beam("Mirror_422nm_1", optomech.circular_mirror, beam_850nm, diameter=layout.inch/8, beam_index=0b111, distance=1.0 * layout.inch, angle=layout.turn['left-down']-2.75,mount_type=optomech.skate_mount)
     created_objects["Mirror_422nm_1"] = mirror_422nm_1
 
+    master_doc.recompute()
+
+    '''
     mirror_422nm_2 = baseplate.place_element_along_beam("Mirror_422nm_2", optomech.circular_mirror, mirror_422nm_1,
                                                         beam_index=0b11, distance=2 * layout.inch, angle=layout.cardinal['left'])
     created_objects["Mirror_422nm_2"] = mirror_422nm_2
