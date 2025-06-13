@@ -98,6 +98,14 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
     #created_objects["Beam_294nm"] = beam_294nm
     #master_doc.recompute()
 
+
+    '''
+    # Adding AOM from ca 40 example
+    aom = baseplate.place_element_along_beam("AOM", optomech.isomet_1205c_on_km100pm, beam,
+                                            beam_index=0b11, distance=50, angle=layout.cardinal['left'],
+                                            forward_direction=-1, backward_direction=1, diffraction_angle=0.01)
+    '''
+
     #aom_294nm = baseplate.place_element_along_beam("AOM_294nm", aom, beam_588nm, beam_index=0b11, distance=2 * layout.inch, angle=layout.turn['right-up'])
     #created_objects["AOM_294nm"] = aom_294nm
     #master_doc.recompute()
@@ -198,6 +206,13 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
    # '''
     shg_844nm_to_422nm = baseplate.place_element_along_beam("SHG_844nm_to_422nm", optomech.cube_splitter, beam_850nm, beam_index=0b11, distance=1.5 * layout.inch,  angle=layout.cardinal['up'], mount_type=optomech.skate_mount)
     created_objects["SHG_844nm_to_422nm"] = shg_844nm_to_422nm
+
+     '''
+    # Adding AOM from ca 40 example
+    aom = baseplate.place_element_along_beam("AOM", optomech.isomet_1205c_on_km100pm, beam,
+                                            beam_index=0b11, distance=50, angle=layout.cardinal['left'],
+                                            forward_direction=-1, backward_direction=1, diffraction_angle=0.01)
+    '''
 
     #aom_422nm = baseplate.place_element_along_beam("AOM_422nm", aom, shg_844nm_to_422nm, beam_index=0b11, distance=2 * layout.inch, angle=layout.cardinal['up'])
     #created_objects["AOM_422nm"] = aom_422nm
