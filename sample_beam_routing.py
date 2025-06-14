@@ -69,12 +69,16 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
     grating_pitch_d = 1/3600  # Lines per mm
     grating_pitch_d_844 = 1/833  # Lines per mm for 844 nm
     grating_pitch_d_866 = 1/600  # Lines per mm for 866 nm
+    grating_pitch_d_588 = 1/1200
+    grating_pitch_d_405 = 1/1745
 
     # Tuned wavelengths
     littrow_angle_294nm = np.arcsin(294e-6 / (2 * grating_pitch_d)) * 180 / np.pi  # ~29.8° (SHG from 588 nm, Ga-68⁺ cooling)
     littrow_angle_397nm = np.arcsin(397e-6 / (2 * grating_pitch_d)) * 180 / np.pi  # ~40.7° (tuned from 405 nm)
     littrow_angle_403nm = np.arcsin(403e-6 / (2 * grating_pitch_d)) * 180 / np.pi  # ~41.5° (tuned from 405 nm)
+    littrow_angle_405nm = np.arcsin(403e-6 / (2 * grating_pitch_d_405)) * 180 / np.pi
     littrow_angle_422nm = np.arcsin(422e-6 / (2 * grating_pitch_d)) * 180 / np.pi  # ~49.4° (for Ca⁺ photoionization)
+    littrow_angle_588nm = np.arcsin(588e-6 / (2 * grating_pitch_d_588)) * 180 / np.pi  # ~29.8° (incomping from ecdl)
     littrow_angle_844nm = np.arcsin(844e-6 / (2 * grating_pitch_d_844)) * 180 / np.pi  # ~50.1° (tuned from 850 nm for 422 nm SHG)
     #littrow_angle_858nm = np.arcsin(858e-9 / (2 * grating_pitch_d)) * 180 / np.pi  # ~45.6° (SHG from 850 nm)
     littrow_angle_866nm = np.arcsin(866e-6 / (2 * grating_pitch_d_866)) * 180 / np.pi  # ~51.2° (SHG from 850 nm)
@@ -82,20 +86,21 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
     gap = layout.inch/8
 
     # Group 1: 588 nm to 294 nm (manual handling)
-    beam_588nm = baseplate.add_beam_path(x=gap, y=input_y_588nm, angle=layout.cardinal['right'])
-    created_objects["Beam_588nm"] = beam_588nm
+
+
+
+    beam_588nm = baseplate.add_beam_path(x=gap, y=input_y_588nm + 0.05 * layout.inch, angle=layout.cardinal['right'])
+    #print(beam_588nm.BasePlacement.__dict__)
+    baseplate.place_element("ECDL_588nm", optomech.ECDL, x=gap, y=input_y_588nm, stage_thickness=1, stage_length=50,  angle=layout.cardinal['right'], littrow_angle=littrow_angle_588nm, cover_box=True)
+    created_objects["ECDL_588nm"] = beam_588nm
     #master_doc.recompute()
 
+    mirror_ECDL_588nm = baseplate.place_element_along_beam("Mirror_ECDL_588nm", optomech.circular_mirror, beam_588nm, diameter=layout.inch/8, beam_index=0b1, distance=3.25 * layout.inch, angle=layout.turn['left-down']+24)
+    created_objects["Mirror_ECDL_588nm"] = mirror_ECDL_588nm
 
-    # add input fiberport, defined at the same coordinates as beam
-    baseplate.place_element("Input Fiberport beam_588nm", optomech.fiberport_mount_hca3, x=gap, y=input_y_588nm, angle=layout.cardinal['right'])
 
-    shg_588nm_to_294nm = baseplate.place_element_along_beam("SHG_588nm_to_294nm", optomech.cube_splitter, beam_588nm, beam_index=0b1, distance=2 * layout.inch, angle=layout.cardinal['right'], mount_type=optomech.skate_mount)
-    #created_objects["SHG_588nm_to_294nm"] = shg_588nm_to_294nm
-    #master_doc.recompute()
-
-    #beam_294nm = baseplate.add_beam_path(x=2 * layout.inch, y=input_y_588nm, angle=littrow_angle_294nm)
-    #created_objects["Beam_294nm"] = beam_294nm
+    shg_588nm_to_294nm = baseplate.place_element_along_beam("SHG_588nm_to_294nm", optomech.cube_splitter, beam_588nm, beam_index=0b1, distance=3.5 * layout.inch, angle=layout.cardinal['right'], mount_type=optomech.skate_mount)
+    created_objects["SHG_588nm_to_294nm"] = shg_588nm_to_294nm
     #master_doc.recompute()
 
 
@@ -111,14 +116,18 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
     #master_doc.recompute()
 
 
-    mirror_294nm_1 = baseplate.place_element_along_beam("Mirror_294nm_1", optomech.circular_mirror, beam_588nm, diameter=layout.inch/8, beam_index=0b10, distance=2 * layout.inch, angle=layout.turn['right-up'],mount_type=optomech.skate_mount)
+    mirror_294nm_1 = baseplate.place_element_along_beam("Mirror_294nm_1", optomech.circular_mirror, beam_588nm, diameter=layout.inch/8, beam_index=0b11, distance=2 * layout.inch, angle=layout.turn['right-down'],mount_type=optomech.skate_mount)
     created_objects["Mirror_294nm_1"] = mirror_294nm_1
 
-    mirror_294nm_2 = baseplate.place_element_along_beam("Mirror_294nm_2", optomech.circular_mirror, beam_588nm, diameter=layout.inch/8, beam_index=0b10, distance=2 * layout.inch, angle=layout.turn['right-down'],mount_type=optomech.skate_mount)
-    created_objects["Mirror_294nm_2"] = mirror_294nm_2
+    #mirror_294nm_2 = baseplate.place_element_along_beam("Mirror_294nm_2", optomech.circular_mirror, beam_588nm, diameter=layout.inch/8, beam_index=0b10, distance=2 * layout.inch, angle=layout.turn['right-down'],mount_type=optomech.skate_mount)
+    #created_objects["Mirror_294nm_2"] = mirror_294nm_2
 
-    mirror_294nm_3 = baseplate.place_element_along_beam("Mirror_294nm_3", optomech.circular_mirror, beam_588nm, diameter=layout.inch/8, beam_index=0b10, distance=2 * layout.inch, angle=layout.turn['left-down']-20,mount_type=optomech.skate_mount)
-    created_objects["Mirror_294nm_3"] = mirror_294nm_3
+    #mirror_294nm_3 = baseplate.place_element_along_beam("Mirror_294nm_3", optomech.circular_mirror, beam_588nm, diameter=layout.inch/8, beam_index=0b10, distance=2 * layout.inch, angle=layout.turn['left-down']-20,mount_type=optomech.skate_mount)
+    #created_objects["Mirror_294nm_3"] = mirror_294nm_3
+
+    print(mirror_294nm_1.__dict__.values())
+    # add output fiberport, defined at the same coordinates as output beam
+    baseplate.place_element("Output Fiberport beam_588nm", optomech.fiberport_mount_hca3, x=gap, y=3 *layout.inch, angle=layout.cardinal['right'])
     master_doc.recompute()
 
     #lens_294nm = baseplate.place_element_along_beam("Lens_294nm", optomech.lens, beam_588nm, beam_index=0b1, distance=1 * layout.inch, angle=0)
@@ -127,48 +136,58 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
     
 
 
-
     # Group 2: 405 nm to 397 nm and 403 nm
-    beam_405nm = baseplate.add_beam_path(x=gap, y=input_y_405nm_1, angle=layout.cardinal['right'])
+    y_offset = 6 * layout.inch
+    input_y_405nm_1+= y_offset
+
+    baseplate.place_element("ECDL_405nm", optomech.ECDL, x=gap, y=input_y_405nm_1, stage_thickness=1, stage_length=50,  angle=layout.cardinal['right'], littrow_angle=littrow_angle_405nm, cover_box=True)
+
+    beam_405nm = baseplate.add_beam_path(x=gap, y=input_y_405nm_1 + 0.05 * layout.inch, angle=layout.cardinal['right'])
     created_objects["Beam_405nm"] = beam_405nm
 
-    # Add input fiberport, defined at the same coordinates as beam
-    baseplate.place_element("Input Fiberport_beam_405nm", optomech.fiberport_mount_hca3, x=gap, y=input_y_405nm_1, angle=layout.cardinal['right'])
+    mirror_ECDL_405nm = baseplate.place_element_along_beam("Mirror_ECDL_405nm", optomech.circular_mirror, beam_405nm, diameter=layout.inch/8, beam_index=0b1, distance=3.25 * layout.inch, angle=layout.turn['left-down']+24)
+    created_objects["Mirror_ECDL_405nm"] = mirror_ECDL_405nm
+    
 
-    beamsplitter_405nm = baseplate.place_element_along_beam("BeamSplitter_405nm", optomech.cube_splitter, beam_405nm, beam_index=0b1, distance=4.25 * layout.inch, angle=layout.cardinal['right'],mount_type=optomech.skate_mount)
+    beamsplitter_405nm = baseplate.place_element_along_beam("BeamSplitter_405nm", optomech.cube_splitter, beam_405nm, beam_index=0b1, distance=3.5 * layout.inch, angle=layout.cardinal['right'],mount_type=optomech.skate_mount)
     created_objects["BeamSplitter_405nm"] = beamsplitter_405nm
     #master_doc.recompute()
-
     # Use laser_mount_km100pm_LMR1 for tuning 405 nm to 397 nm
     #tuner_397nm = App.ActiveDocument.addObject("Part::FeaturePython", "Tuner_397nm")
 
-    tuner_397nm = baseplate.place_element_along_beam("Tuner_397nm", optomech.laser_mount_km100pm_LMR1, beam_405nm, beam_index=0b10, distance=4.5 * layout.inch, angle=layout.cardinal['right'],drill=True, littrow_angle=littrow_angle_397nm)
+    tuner_397nm = baseplate.place_element_along_beam("Tuner_397nm", optomech.laser_mount_km100pm_LMR1, beam_405nm, beam_index=0b10, distance=1.0 * layout.inch, angle=layout.cardinal['right'],drill=True, littrow_angle=littrow_angle_397nm)
     created_objects["Tuner_397nm"] = tuner_397nm
     #master_doc.recompute()
-    #'''
 
     # Mirror sequence following the tuned 397 nm beam
-    mirror_397nm_1 = baseplate.place_element_along_beam("Mirror_397nm_1", optomech.circular_mirror, beam_405nm, diameter=layout.inch/8, beam_index=0b10, distance=2 * layout.inch, angle=layout.turn['right-down'],mount_type=optomech.skate_mount)
+    mirror_397nm_1 = baseplate.place_element_along_beam("Mirror_397nm_1", optomech.circular_mirror, beam_405nm, diameter=layout.inch/8, beam_index=0b10, distance=2.25 * layout.inch, angle=layout.turn['right-down'],mount_type=optomech.skate_mount)
     created_objects["Mirror_397nm_1"] = mirror_397nm_1
-    mirror_397nm_2 = baseplate.place_element_along_beam("Mirror_397nm_2", optomech.circular_mirror, beam_405nm, diameter=layout.inch/8, beam_index=0b10, distance=8 * layout.inch, angle=layout.turn['left-down']-13,mount_type=optomech.skate_mount)
-    created_objects["Mirror_397nm_2"] = mirror_397nm_2
-    #master_doc.recompute()
 
-    tuner_403nm = baseplate.place_element_along_beam("Tuner_403nm", optomech.laser_mount_km100pm_LMR1_floating, beam_405nm, beam_index=0b11, distance=2.5 * layout.inch, angle=layout.cardinal['up'], littrow_angle=littrow_angle_403nm, drill=True)#, height_offset_in=0)
+    # Add output fiberport, defined at the same coordinates as beam
+    baseplate.place_element_relative("Output Fiberport_beam_397nm", optomech.fiberport_mount_hca3, mirror_397nm_1, x_off= 0.0 * layout.inch, y_off=-4*layout.inch, angle=layout.cardinal['up'])
+
+
+    tuner_403nm = baseplate.place_element_along_beam("Tuner_403nm", optomech.laser_mount_km100pm_LMR1_floating, beam_405nm, beam_index=0b11, distance=2.0 * layout.inch, angle=layout.cardinal['up'], littrow_angle=littrow_angle_403nm, drill=True)#, height_offset_in=0)
     created_objects["Tuner_403nm"] = tuner_403nm
-
-
-    mirror_403nm_1 = baseplate.place_element_along_beam("Mirror_403nm_1", optomech.circular_mirror, beam_405nm, diameter=layout.inch/8, beam_index=0b11, distance=2.5 * layout.inch, angle=layout.turn['left-down']-10.5,mount_type=optomech.skate_mount)
-    created_objects["Mirror_403nm_1"] = mirror_403nm_1
     master_doc.recompute()
 
-    
+
+    mirror_403nm_1 = baseplate.place_element_along_beam("Mirror_403nm_1", optomech.circular_mirror, beam_405nm, diameter=layout.inch/8, beam_index=0b11, distance=2.0 * layout.inch, angle=layout.turn['left-down'],mount_type=optomech.skate_mount)
+    created_objects["Mirror_403nm_1"] = mirror_403nm_1
+
+    mirror_403nm_2 = baseplate.place_element_along_beam("Mirror_403nm_2", optomech.circular_mirror, beam_405nm, diameter=layout.inch/8, beam_index=0b11, distance=1.35 * layout.inch, angle=layout.turn['right-up']+1.35,mount_type=optomech.skate_mount)
+    created_objects["Mirror_403nm_2"] = mirror_403nm_2
+
+    baseplate.place_element("Output Fiberport_beam_403nm", optomech.fiberport_mount_hca3, x=gap, y=y_offset+(1.5*3*layout.inch), angle=layout.cardinal['right'])    
+    master_doc.recompute()
 
 
 
 
 
 
+
+    '''
     # Group 3: 850 nm to 866 nm and 422 nm
     beam_850nm = baseplate.add_beam_path(x=gap, y=input_y_850nm, angle=layout.cardinal['right'])
     created_objects["Beam_850nm"] = beam_850nm
@@ -198,16 +217,15 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
     mirror_866nm_3 = baseplate.place_element_along_beam("Mirror_866nm_3", optomech.circular_mirror, beam_850nm, diameter=layout.inch/8, beam_index=0b10, distance=8.0 * layout.inch, angle=layout.turn['left-down']-5.25,mount_type=optomech.skate_mount)
     created_objects["Mirror_866nm_3"] = mirror_866nm_3
 
-    #'''
 
-    tuner_844nm = baseplate.place_element_along_beam("Tuner_844nm", optomech.laser_mount_km100pm_LMR1_floating, beam_850nm, stage_thickness=6, stage_length=50, beam_index=0b11, distance=4 * layout.inch, angle=layout.cardinal['up'], drill=True, littrow_angle=littrow_angle_844nm)  # Note: Using 422nm angle as placeholder
-    created_objects["Tuner_844nm"] = tuner_844nm
+    #tuner_844nm = baseplate.place_element_along_beam("Tuner_844nm", optomech.laser_mount_km100pm_LMR1_floating, beam_850nm, stage_thickness=6, stage_length=50, beam_index=0b11, distance=4 * layout.inch, angle=layout.cardinal['up'], drill=True, littrow_angle=littrow_angle_844nm)  # Note: Using 422nm angle as placeholder
+    #created_objects["Tuner_844nm"] = tuner_844nm
 
-   # '''
     shg_844nm_to_422nm = baseplate.place_element_along_beam("SHG_844nm_to_422nm", optomech.cube_splitter, beam_850nm, beam_index=0b11, distance=1.5 * layout.inch,  angle=layout.cardinal['up'], mount_type=optomech.skate_mount)
     created_objects["SHG_844nm_to_422nm"] = shg_844nm_to_422nm
+    '''
 
-     '''
+    '''
     # Adding AOM from ca 40 example
     aom = baseplate.place_element_along_beam("AOM", optomech.isomet_1205c_on_km100pm, beam,
                                             beam_index=0b11, distance=50, angle=layout.cardinal['left'],
@@ -220,10 +238,10 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
 
     #'''
 
-    mirror_422nm_1 = baseplate.place_element_along_beam("Mirror_422nm_1", optomech.circular_mirror, beam_850nm, diameter=layout.inch/8, beam_index=0b111, distance=1.0 * layout.inch, angle=layout.turn['left-down']-2.75,mount_type=optomech.skate_mount)
-    created_objects["Mirror_422nm_1"] = mirror_422nm_1
+    #mirror_422nm_1 = baseplate.place_element_along_beam("Mirror_422nm_1", optomech.circular_mirror, beam_850nm, diameter=layout.inch/8, beam_index=0b111, distance=1.0 * layout.inch, angle=layout.turn['left-down']-2.75,mount_type=optomech.skate_mount)
+    #created_objects["Mirror_422nm_1"] = mirror_422nm_1
 
-    master_doc.recompute()
+    #master_doc.recompute()
 
     '''
     mirror_422nm_2 = baseplate.place_element_along_beam("Mirror_422nm_2", optomech.circular_mirror, mirror_422nm_1,
@@ -240,12 +258,14 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
     '''
 
     # Add ion trap target area (3.2 mm x 3.2 mm = 0.126 x 0.126 inches)
+    '''
     ion_trap = master_doc.addObject("Part::Box", "IonTrap")
     ion_trap.Placement.Base = App.Vector(0, 0, 0)
     ion_trap.Length = 0.126 * layout.inch
     ion_trap.Width = 0.126 * layout.inch
     ion_trap.Height = 0.1 * layout.inch
     created_objects["IonTrap"] = ion_trap
+    '''
 
     # Add to baseplate hierarchy if supported
     if hasattr(baseplate, 'ChildObjects'):
@@ -274,6 +294,7 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
        #gc.collect()
     '''
 
+    '''
     # Add ion trap target area (3.2 mm x 3.2 mm = 0.126 x 0.126 inches)
     ion_trap = master_doc.addObject("Part::Box", "IonTrap")
     ion_trap.Placement.Base = App.Vector(0, 0, 0)
@@ -281,6 +302,7 @@ def isotope_separation_baseplate(x=0, y=0, angle=0):
     ion_trap.Width = 0.126 * layout.inch
     ion_trap.Height = 0.1 * layout.inch
     created_objects["IonTrap"] = ion_trap
+    '''
 
     # Add to baseplate hierarchy if supported
     if hasattr(baseplate, 'ChildObjects'):
