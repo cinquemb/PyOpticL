@@ -54,7 +54,7 @@ def group1_baseplate_588nm(x=0, y=0, angle=0):
     y_max = 10
     z_max = 0.5
     input_y_588nm = 0.5 * layout.inch
-    baseplate = layout.baseplate(x_max * layout.inch, y_max * layout.inch, z_max * layout.inch, x=x, y=input_y_588nm - 0.5 * layout.inch, angle=angle)  # Shift y to align with ECDL
+    baseplate = layout.baseplate(x_max * layout.inch, y_max * layout.inch, z_max * layout.inch, x=x, y=y, angle=angle)  # Shift y to align with ECDL
     master_doc = App.ActiveDocument
     #master_doc.addObject(baseplate)
     #master_doc.recompute()
@@ -131,7 +131,7 @@ def group2_baseplate_405nm(x=0, y=0, angle=0):
     input_y_405nm_1 = 2.0 * layout.inch
     y_offset = 5 * layout.inch
     input_y_405nm_1 += y_offset
-    baseplate = layout.baseplate(x_max * layout.inch, y_max * layout.inch, z_max * layout.inch, x=x, y=input_y_405nm_1 - 0.5 * layout.inch, angle=angle)  # Shift y to align with ECDL
+    baseplate = layout.baseplate(x_max * layout.inch, y_max * layout.inch, z_max * layout.inch, x=x, y=input_y_405nm_1/12, angle=angle)  # Shift y to align with ECDL
     master_doc = App.ActiveDocument
     #master_doc.addObject(baseplate)
     #master_doc.recompute()
@@ -179,16 +179,16 @@ def group2_baseplate_405nm(x=0, y=0, angle=0):
     baseplate.place_element_relative("Output Fiberport_beam_397nm", optomech.fiberport_mount_hca3, mirror_397nm_1, x_off= 0.0 * layout.inch, y_off=-4*layout.inch, angle=layout.cardinal['up'])
 
 
-    tuner_403nm = baseplate.place_element_along_beam("Tuner_403nm", optomech.laser_mount_km100pm_LMR1_floating, beam_405nm, beam_index=0b11, distance=2.0 * layout.inch, angle=layout.cardinal['up'], littrow_angle=littrow_angle_403nm, drill=True)#, height_offset_in=0)
+    tuner_403nm = baseplate.place_element_along_beam("Tuner_403nm", optomech.laser_mount_km100pm_LMR1_floating, beam_405nm, stage_length=50, beam_index=0b11, distance=2.0 * layout.inch, angle=layout.cardinal['up'], littrow_angle=littrow_angle_403nm, drill=True)#, height_offset_in=0)
     created_objects["Tuner_403nm"] = tuner_403nm
     master_doc.recompute()
 
 
-    mirror_403nm_1 = baseplate.place_element_along_beam("Mirror_403nm_1", optomech.circular_mirror, beam_405nm, diameter=layout.inch/8, beam_index=0b11, distance=2.0 * layout.inch, angle=layout.turn['left-down'],mount_type=optomech.skate_mount)
+    mirror_403nm_1 = baseplate.place_element_along_beam("Mirror_403nm_1", optomech.circular_mirror, beam_405nm, diameter=layout.inch/8, beam_index=0b11, distance=2.0 * layout.inch, angle=layout.turn['right-up']-21, mount_type=optomech.skate_mount)
     created_objects["Mirror_403nm_1"] = mirror_403nm_1
 
-    mirror_403nm_2 = baseplate.place_element_along_beam("Mirror_403nm_2", optomech.circular_mirror, beam_405nm, diameter=layout.inch/8, beam_index=0b11, distance=0.5 * layout.inch, angle=layout.turn['right-up']+2,mount_type=optomech.skate_mount)
-    created_objects["Mirror_403nm_2"] = mirror_403nm_2
+    #mirror_403nm_2 = baseplate.place_element_along_beam("Mirror_403nm_2", optomech.circular_mirror, beam_405nm, diameter=layout.inch/8, beam_index=0b11, distance=0.5 * layout.inch, angle=layout.turn['right-up']+2,mount_type=optomech.skate_mount)
+    #created_objects["Mirror_403nm_2"] = mirror_403nm_2
 
 
     #aom_403nm = baseplate.place_element_along_beam("AOM_403nm", aom, beam_405nm, beam_index=0b11, distance=2 * layout.inch, angle=layout.turn['right-up'])
@@ -219,7 +219,7 @@ def group3_baseplate_850nm(x=0, y=0, angle=0):
     y_offset = 5 * layout.inch
     y_offset *= 1.6
     input_y_850nm += y_offset
-    baseplate = layout.baseplate(x_max * layout.inch, y_max * layout.inch, z_max * layout.inch, x=x, y=input_y_850nm - 0.5 * layout.inch, angle=angle)  # Shift y to align with ECDL
+    baseplate = layout.baseplate(x_max * layout.inch, y_max * layout.inch, z_max * layout.inch, x=x, y=input_y_850nm/12, angle=angle)  # Shift y to align with ECDL
     master_doc = App.ActiveDocument
     #master_doc.addObject(baseplate)
     #master_doc.recompute()
