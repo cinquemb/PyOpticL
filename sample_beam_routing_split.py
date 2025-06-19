@@ -5,7 +5,13 @@ import os
 import numpy as np
 import gc
 
-is_headless = False
+import FreeCAD as App
+import FreeCADGui
+
+
+#time freecad --log-file=freecad.log --single-instance -c PyOpticL/sample_beam_routing_split.py
+
+is_headless = True
 # Redirect output to file to reduce memory buffering
 sys.stdout = open('debug_output.txt', 'w')
 
@@ -48,14 +54,22 @@ mount_holes = [
     (11 * layout.inch, 11 * layout.inch)  # Top-right
 ]
 
-def group1_baseplate_588nm(x=0, y=0, angle=0):
+def group1_baseplate_588nm(doc, x=0, y=0, angle=0):
     # Create smaller baseplate for Group 1, aligned with ECDL y-position
     x_max = 10
     y_max = 10
     z_max = 0.5
     input_y_588nm = 0.5 * layout.inch
-    baseplate = layout.baseplate(x_max * layout.inch, y_max * layout.inch, z_max * layout.inch, x=x, y=y, angle=angle)  # Shift y to align with ECDL
-    master_doc = App.ActiveDocument
+    print(f"Creating baseplate at x={x}, y={y}, angle={angle}")
+    try:
+        baseplate = layout.baseplate(x_max * layout.inch, y_max * layout.inch, z_max * layout.inch, x=x, y=y, angle=angle)  # Shift y to align with ECDL
+        print(f"Baseplate created: {baseplate}")
+        if hasattr(baseplate, 'Proxy') and baseplate.Proxy is None:
+            print("Warning: Baseplate Proxy is None", file=sys.stderr)
+    except Exception as e:
+        print(f"Error creating baseplate: {e}", file=sys.stderr)
+        raise
+    master_doc = doc if doc else App.ActiveDocument
     #master_doc.addObject(baseplate)
     #master_doc.recompute()
     print(f"Baseplate dimensions: {x_max * layout.inch} x {y_max * layout.inch} x {z_max * layout.inch}")
@@ -67,7 +81,7 @@ def group1_baseplate_588nm(x=0, y=0, angle=0):
 
     # Littrow angles for tuned and SHG wavelengths with debug
     grating_pitch_d_588 = 1/1200
-    littrow_angle_588nm = np.arcsin(588e-6 / (2 * grating_pitch_d_588)) * 180 / np.pi  # ~29.8° (incomping from ecdl)
+    littrow_angle_588nm = np.arcsin(588e-6 / (2 * grating_pitch_d_588)) * 180 / np.pi
 
     # Group 1: 588 nm to 294 nm (manual handling)
     beam_588nm = baseplate.add_beam_path(x=gap, y=input_y_588nm + 0.05 * layout.inch - (input_y_588nm - 0.5 * layout.inch)+ (2 * layout.inch), angle=layout.cardinal['right'])
@@ -81,10 +95,7 @@ def group1_baseplate_588nm(x=0, y=0, angle=0):
 
     shg_588nm_to_294nm = baseplate.place_element_along_beam("SHG_588nm_to_294nm", optomech.cube_splitter, beam_588nm, beam_index=0b1, distance=3.5 * layout.inch, angle=layout.cardinal['right'], mount_type=optomech.skate_mount)
     created_objects["SHG_588nm_to_294nm"] = shg_588nm_to_294nm
-    #master_doc.recompute()
 
-    
-    #master_doc.recompute()
 
     mirror_294nm_1 = baseplate.place_element_along_beam("Mirror_294nm_1", optomech.circular_mirror, beam_588nm, diameter=layout.inch/8, beam_index=0b11, distance=3.25 * layout.inch, angle=layout.turn['right-down']+0.25,mount_type=optomech.skate_mount)
     created_objects["Mirror_294nm_1"] = mirror_294nm_1
@@ -93,23 +104,15 @@ def group1_baseplate_588nm(x=0, y=0, angle=0):
     aom_294nm = baseplate.place_element_along_beam("AOM_294nm", optomech.isomet_1205c_on_km100pm, beam_588nm, beam_index=0b11, distance=50, angle=layout.cardinal['right'], forward_direction=-1, backward_direction=1, diffraction_angle=0.01)
     created_objects["AOM_294nm"] = aom_294nm
 
-    #mirror_294nm_2 = baseplate.place_element_along_beam("Mirror_294nm_2", optomech.circular_mirror, beam_588nm, diameter=layout.inch/8, beam_index=0b10, distance=2 * layout.inch, angle=layout.turn['right-down'],mount_type=optomech.skate_mount)
-    #created_objects["Mirror_294nm_2"] = mirror_294nm_2
-
-    #mirror_294nm_3 = baseplate.place_element_along_beam("Mirror_294nm_3", optomech.circular_mirror, beam_588nm, diameter=layout.inch/8, beam_index=0b10, distance=2 * layout.inch, angle=layout.turn['left-down']-20,mount_type=optomech.skate_mount)
-    #created_objects["Mirror_294nm_3"] = mirror_294nm_3
-
     # add output fiberport, defined at the same coordinates as output beam
     baseplate.place_element("Output Fiberport beam_588nm", optomech.fiberport_mount_hca3, x=gap, y=3.5 *layout.inch - (input_y_588nm - 0.5 * layout.inch) + (2 * layout.inch) + (1 * layout.inch), angle=layout.cardinal['right'])
-    master_doc.recompute()
-
-    #lens_294nm = baseplate.place_element_along_beam("Lens_294nm", optomech.lens, beam_588nm, beam_index=0b1, distance=1 * layout.inch, angle=0)
-    #created_objects["Lens_294nm"] = lens_294nm
+    
+    if not is_headless:
+        master_doc.recompute()
 
     if not os.path.exists(script_dir):
         os.makedirs(script_dir)
 
-    master_doc.recompute()
     master_doc.saveAs(os.path.join(script_dir, "Group1_588nm.fcstd"))
     if not is_headless:
         App.ActiveDocument.commitTransaction()
@@ -119,7 +122,7 @@ def group1_baseplate_588nm(x=0, y=0, angle=0):
     print("Group 1 (588 nm) assembly completed successfully")
     return baseplate
 
-def group2_baseplate_405nm(x=0, y=0, angle=0):
+def group2_baseplate_405nm(doc, x=0, y=0, angle=0):
     # Create smaller baseplate for Group 2, aligned with ECDL y-position
     x_max = 12
     y_max = 12
@@ -127,8 +130,16 @@ def group2_baseplate_405nm(x=0, y=0, angle=0):
     input_y_405nm_1 = 2.0 * layout.inch
     y_offset = 5 * layout.inch
     input_y_405nm_1 += y_offset
-    baseplate = layout.baseplate(x_max * layout.inch, y_max * layout.inch, z_max * layout.inch, x=x, y=input_y_405nm_1/12, angle=angle)  # Shift y to align with ECDL
-    master_doc = App.ActiveDocument
+    print(f"Creating baseplate at x={x}, y={y}, angle={angle}")
+    try:
+        baseplate = layout.baseplate(x_max * layout.inch, y_max * layout.inch, z_max * layout.inch, x=x, y=input_y_405nm_1/12, angle=angle)  # Shift y to align with ECDL
+        print(f"Baseplate created: {baseplate}")
+        if hasattr(baseplate, 'Proxy') and baseplate.Proxy is None:
+            print("Warning: Baseplate Proxy is None", file=sys.stderr)
+    except Exception as e:
+        print(f"Error creating baseplate: {e}", file=sys.stderr)
+        raise
+    master_doc = doc if doc else App.ActiveDocument
     #master_doc.addObject(baseplate)
     #master_doc.recompute()
     print(f"Baseplate dimensions: {x_max * layout.inch} x {y_max * layout.inch} x {z_max * layout.inch}")
@@ -166,11 +177,6 @@ def group2_baseplate_405nm(x=0, y=0, angle=0):
     mirror_397nm_1 = baseplate.place_element_along_beam("Mirror_397nm_1", optomech.circular_mirror, beam_405nm, diameter=layout.inch/8, beam_index=0b10, distance=2.25 * layout.inch, angle=layout.turn['right-down'],mount_type=optomech.skate_mount)
     created_objects["Mirror_397nm_1"] = mirror_397nm_1
 
-
-    #aom_397nm = baseplate.place_element_along_beam("AOM_397nm", aom, beam_405nm, beam_index=0b10, distance=2 * layout.inch, angle=layout.turn['right-up'])
-    #created_objects["AOM_397nm"] = aom_397nm
-    #master_doc.recompute()
-
     # Adding AOM from ca 40 example
     aom_397nm = baseplate.place_element_along_beam("AOM_397nm", optomech.isomet_1205c_on_km100pm, beam_405nm, beam_index=0b10, distance=70, angle=layout.cardinal['down'], forward_direction=-1, backward_direction=1, diffraction_angle=0.01)
     created_objects["AOM_397nm"] = aom_397nm
@@ -181,7 +187,7 @@ def group2_baseplate_405nm(x=0, y=0, angle=0):
 
     tuner_403nm = baseplate.place_element_along_beam("Tuner_403nm", optomech.laser_mount_km100pm_LMR1_floating, beam_405nm, stage_length=50, beam_index=0b11, distance=3.0 * layout.inch, angle=layout.cardinal['up'], littrow_angle=littrow_angle_403nm, drill=True)#, height_offset_in=0)
     created_objects["Tuner_403nm"] = tuner_403nm
-    master_doc.recompute()
+    #master_doc.recompute()
 
 
     mirror_403nm_1 = baseplate.place_element_along_beam("Mirror_403nm_1", optomech.circular_mirror, beam_405nm, diameter=layout.inch/8, beam_index=0b11, distance=2.0 * layout.inch, angle=layout.turn['right-up']-21, mount_type=optomech.skate_mount)
@@ -210,7 +216,8 @@ def group2_baseplate_405nm(x=0, y=0, angle=0):
     if not os.path.exists(script_dir):
         os.makedirs(script_dir)
 
-    master_doc.recompute()
+    if not is_headless:
+        master_doc.recompute()
     master_doc.saveAs(os.path.join(script_dir, "Group2_405nm.fcstd"))
     if not is_headless:
         App.ActiveDocument.commitTransaction()
@@ -220,7 +227,7 @@ def group2_baseplate_405nm(x=0, y=0, angle=0):
     print("Group 2 (405 nm) assembly completed successfully")
     return baseplate
 
-def group3_baseplate_850nm(x=0, y=0, angle=0):
+def group3_baseplate_850nm(doc, x=0, y=0, angle=0):
     # Create smaller baseplate for Group 3, aligned with ECDL y-position
     x_max = 10
     y_max = 10
@@ -229,8 +236,18 @@ def group3_baseplate_850nm(x=0, y=0, angle=0):
     y_offset = 5 * layout.inch
     y_offset *= 1.6
     input_y_850nm += y_offset
-    baseplate = layout.baseplate(x_max * layout.inch, y_max * layout.inch, z_max * layout.inch, x=x, y=input_y_850nm/12, angle=angle)  # Shift y to align with ECDL
-    master_doc = App.ActiveDocument
+    print(f"Creating baseplate at x={x}, y={y}, angle={angle}")
+    try:
+        baseplate = layout.baseplate(x_max * layout.inch, y_max * layout.inch, z_max * layout.inch, x=x, y=input_y_850nm/12, angle=angle)  # Shift y to align with ECDL
+        print(f"Baseplate created: {baseplate}")
+        if hasattr(baseplate, 'Proxy') and baseplate.Proxy is None:
+            print("Warning: Baseplate Proxy is None", file=sys.stderr)
+    except Exception as e:
+        print(f"Error creating baseplate: {e}", file=sys.stderr)
+        raise
+    print(baseplate.__dict__)
+
+    master_doc = doc if doc else App.ActiveDocument
     #master_doc.addObject(baseplate)
     #master_doc.recompute()
     print(f"Baseplate dimensions: {x_max * layout.inch} x {y_max * layout.inch} x {z_max * layout.inch}")
@@ -254,7 +271,7 @@ def group3_baseplate_850nm(x=0, y=0, angle=0):
     beam_850nm = baseplate.add_beam_path(x=gap, y=input_y_850nm - (input_y_850nm - 0.5 * layout.inch) + (2 * layout.inch), angle=layout.cardinal['right'])
     created_objects["Beam_850nm"] = beam_850nm
 
-    mirror_ECDL_850nm = baseplate.place_element_along_beam("Mirror_ECDL_850nm", optomech.circular_mirror, beam_850nm, diameter=layout.inch/8, beam_index=0b1, distance=3.25 * layout.inch, angle=layout.turn['left-down']+24)
+    mirror_ECDL_850nm = baseplate.place_element_along_beam("Mirror_ECDL_850nm", optomech.circular_mirror, beam_850nm, diameter=layout.inch/8, beam_index=0b1, distance=3.25 * layout.inch, angle=layout.turn['left-down']+24,mount_type=optomech.skate_mount)
     created_objects["Mirror_ECDL_850nm"] = mirror_ECDL_850nm
 
     beamsplitter_850nm = baseplate.place_element_along_beam("BeamSplitter_850nm", optomech.cube_splitter, beam_850nm, beam_index=0b1, distance=3.5* layout.inch, angle=layout.cardinal['right'],mount_type=optomech.skate_mount)
@@ -272,7 +289,7 @@ def group3_baseplate_850nm(x=0, y=0, angle=0):
     baseplate.place_element_relative("Output Fiberport_beam_866nm", optomech.fiberport_mount_hca3, mirror_866nm_1, x_off= 0.0 * layout.inch, y_off=-4*layout.inch, angle=layout.cardinal['up'])
 
     tuner_844nm = baseplate.place_element_along_beam("Tuner_844nm", optomech.laser_mount_km100pm_LMR1_floating, beam_850nm, stage_thickness=6, stage_length=40, beam_index=0b11, distance=2 * layout.inch, angle=layout.cardinal['up'], drill=True, littrow_angle=littrow_angle_844nm)  # Note: Using 422nm angle as placeholder
-    #created_objects["Tuner_844nm"] = tuner_844nm
+    created_objects["Tuner_844nm"] = tuner_844nm
 
     shg_844nm_to_422nm = baseplate.place_element_along_beam("SHG_844nm_to_422nm", optomech.cube_splitter, beam_850nm, beam_index=0b11, distance=2 * layout.inch,  angle=layout.cardinal['up'], mount_type=optomech.skate_mount)
     created_objects["SHG_844nm_to_422nm"] = shg_844nm_to_422nm
@@ -285,12 +302,13 @@ def group3_baseplate_850nm(x=0, y=0, angle=0):
 
     baseplate.place_element("Output Fiberport_beam_422nm", optomech.fiberport_mount_hca3, x=gap, y=input_y_850nm-2+(1.40*3*layout.inch) - (input_y_850nm - 0.5 * layout.inch) + (2 * layout.inch), angle=layout.cardinal['right'])    
 
-    master_doc.recompute()
+    #master_doc.recompute()
 
     if not os.path.exists(script_dir):
         os.makedirs(script_dir)
 
-    master_doc.recompute()
+    if not is_headless:
+        master_doc.recompute()
     master_doc.saveAs(os.path.join(script_dir, "Group3_850nm.fcstd"))
     if not is_headless:
         App.ActiveDocument.commitTransaction()
@@ -300,9 +318,32 @@ def group3_baseplate_850nm(x=0, y=0, angle=0):
     print("Group 3 (850 nm) assembly completed successfully")
     return baseplate
 
-if __name__ == "__main__":
-    group1_baseplate_588nm()
-    group2_baseplate_405nm()
-    group3_baseplate_850nm()
+if is_headless:
+    FreeCADGui.showMainWindow()
+    mw = FreeCADGui.getMainWindow()
+    mw.hide()
+
+    App.newDocument("Group1_588nm")
+    import time; time.sleep(1)  # Ensure document initialization
+    if App.ActiveDocument is None:
+        raise RuntimeError("Active document not initialized!")
+    App.ActiveDocument.openTransaction("Batch Object Creation")
+    doc = App.ActiveDocument
+    print(f"Active document: {doc.Name}")
+    group1_baseplate_588nm(doc)
+    App.newDocument("Group2_405nm")
+    doc = App.ActiveDocument
+    group2_baseplate_405nm(doc)
+    App.newDocument("Group3_850nm")
+    doc = App.ActiveDocument
+
+    group3_baseplate_850nm(doc)
     end_time = time.time()
     print(f"Execution time: {end_time - start_time} seconds")
+else:
+    if __name__ == "__main__":
+        group1_baseplate_588nm(None)
+        group2_baseplate_405nm(None)
+        group3_baseplate_850nm(None)
+        end_time = time.time()
+        print(f"Execution time: {end_time - start_time} seconds")

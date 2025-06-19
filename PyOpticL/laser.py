@@ -188,8 +188,9 @@ class beam_path:
             # get all inline components
             inline_comps = []
             for obj in selfobj.PathObjects:
-                if obj.BeamIndex == beam_index:
-                    inline_comps.append(obj)
+                if hasattr(obj, "BeamIndex"):
+                    if obj.BeamIndex == beam_index:
+                        inline_comps.append(obj)
             
             # get next inline component
             inline_obj = None
