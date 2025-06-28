@@ -46,6 +46,32 @@ from modular_singlepass import singlepass, singlepass_mirrored
 from modular_beam_pickoff import Beam_pickoff
 from modular_sourcebox import sourcebox
 
+
+'''
+
+TODO: Laser → Littrow Grating/SHG → AOM → Beam Expander → Top-Hat DOE → AOD x 2 → Ions/Sample, for gate ops
+
+TODO: Laser → Littrow Grating/SHG → AOM → Beam Expander → Top-Hat DOE → Ions/Sample for  resonani ionization
+
+
+Home made beam expander:
+
+### **Galilean Beam Expander (No Internal Focus)**
+- **Lens 1:** Negative (concave) lens (focal length $$f_1$$)
+- **Lens 2:** Positive (convex) lens (focal length $$f_2$$)
+- **Separation:** $$f_2 - |f_1|$$
+- **Magnification:** $$\left|\frac{f_2}{f_1}\right|$$
+- **Advantage:** Compact, no internal focus (safer for high power).
+
+### **Keplerian Beam Expander (With Internal Focus)**
+- **Lens 1:** Positive (convex) lens ($$f_1$$)
+- **Lens 2:** Positive (convex) lens ($$f_2$$)
+- **Separation:** $$f_1 + f_2$$
+- **Magnification:** $$\frac{f_2}{f_1}$$
+- **Advantage:** Can include a spatial filter at the focus for beam cleanup.
+
+'''
+
 # Mount hole coordinates (updated for 12x12 inch baseplate)
 mount_holes = [
     (0 * layout.inch, 0 * layout.inch),  # Bottom-left
