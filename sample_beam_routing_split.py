@@ -223,8 +223,23 @@ def group2_baseplate_405nm(doc, x=0, y=0, angle=0):
     beamsplitter_403nm = baseplate.place_element_along_beam("BeamSplitter_403nm", optomech.cube_splitter, beam_405nm, beam_index=0b11, distance=1.0 * layout.inch, angle=layout.cardinal['up'],mount_type=optomech.skate_mount)
     created_objects["BeamSplitter_403nm"] = beamsplitter_403nm
 
-    mirror_403nm_2 = baseplate.place_element_along_beam("Mirror_403nm_2", optomech.circular_mirror, beam_405nm, diameter=layout.inch/8, beam_index=0b111, distance=4.0 * layout.inch, angle=layout.turn['right-down'],mount_type=optomech.skate_mount)
+    
+
+
+    beamsplitter_403nm_2 = baseplate.place_element_along_beam("BeamSplitter_403nm_2", optomech.cube_splitter, beam_405nm, beam_index=0b111, distance=2.5 * layout.inch, angle=layout.cardinal['right'],mount_type=optomech.skate_mount)
+    created_objects["BeamSplitter_403nm_2"] = beamsplitter_403nm_2
+
+
+    mirror_403nm_2 = baseplate.place_element_along_beam("Mirror_403nm_2", optomech.circular_mirror, beam_405nm, diameter=layout.inch/8, beam_index=0b1110, distance=1.5 * layout.inch, angle=layout.turn['right-down'],mount_type=optomech.skate_mount)
     created_objects["Mirror_403nm_2"] = mirror_403nm_2
+
+
+
+    mirror_403nm_3 = baseplate.place_element_along_beam("Mirror_403nm_3", optomech.circular_mirror, beam_405nm, diameter=layout.inch/8, beam_index=0b1111, distance=4.0 * layout.inch, angle=layout.turn['right-up'],mount_type=optomech.skate_mount)
+    created_objects["Mirror_403nm_3"] = mirror_403nm_3
+
+
+
 
 
     # Adding AOM from ca 40 example
@@ -232,12 +247,21 @@ def group2_baseplate_405nm(doc, x=0, y=0, angle=0):
     created_objects["AOM_403nm"] = aom_403nm
 
     # Adding AOM from ca 40 example
-    aom_403nm_2 = baseplate.place_element_along_beam("AOM_403nm_2", optomech.isomet_1205c_on_km100pm, beam_405nm, beam_index=0b111, distance=20, angle=layout.cardinal['right'], forward_direction=-1, backward_direction=1, diffraction_angle=0.01)
+    aom_403nm_2 = baseplate.place_element_along_beam("AOM_403nm_2", optomech.isomet_1205c_on_km100pm, beam_405nm, beam_index=0b1110, distance=20, angle=layout.cardinal['right'], forward_direction=-1, backward_direction=1, diffraction_angle=0.01)
     created_objects["AOM_403nm_2"] = aom_403nm_2
 
-    baseplate.place_element("Output Fiberport_beam_403nm", optomech.fiberport_mount_hca3, x=gap, y=y_offset+(1.75*3*layout.inch) - (input_y_405nm_1 - 0.5 * layout.inch) + (3 * layout.inch), angle=layout.cardinal['right'])   
 
-    baseplate.place_element("Output Fiberport_beam_403nm_2", optomech.fiberport_mount_hca3, x=gap, y=y_offset+(2*layout.inch)+(1.75*3*layout.inch) - (input_y_405nm_1 - 0.5 * layout.inch) + (2 * layout.inch) + (3 *layout.inch), angle=layout.cardinal['right'])    
+    # Adding AOM from ca 40 example
+    aom_403nm_3 = baseplate.place_element_along_beam("AOM_403nm_3", optomech.isomet_1205c_on_km100pm, beam_405nm, beam_index=0b1111, distance=20, angle=layout.cardinal['down'], forward_direction=-1, backward_direction=1, diffraction_angle=0.01)
+    created_objects["AOM_403nm_3"] = aom_403nm_3
+
+    baseplate.place_element("Output Fiberport_beam_403nm_68GAPLUSPUMP", optomech.fiberport_mount_hca3, x=gap, y=y_offset+(1.75*3*layout.inch) - (input_y_405nm_1 - 0.5 * layout.inch) + (3 * layout.inch), angle=layout.cardinal['right'])   
+
+    baseplate.place_element("Output Fiberport_beam_403nm_2_68GAPLUSPUMP", optomech.fiberport_mount_hca3, x=gap, y=y_offset+(2*layout.inch)+(1.75*3*layout.inch) - (input_y_405nm_1 - 0.5 * layout.inch) + (2 * layout.inch) + (3 *layout.inch), angle=layout.cardinal['right'])
+
+
+    # Add output fiberport, defined at the same coordinates as beam
+    baseplate.place_element_relative("Output Fiberport_beam_403nm_3_RI", optomech.fiberport_mount_hca3, aom_403nm_3, x_off= 0.0 * layout.inch, y_off=(2*layout.inch)-gap, angle=layout.cardinal['down'])
 
     if not os.path.exists(script_dir):
         os.makedirs(script_dir)
