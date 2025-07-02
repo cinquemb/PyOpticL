@@ -49,9 +49,13 @@ from modular_sourcebox import sourcebox
 
 '''
 
-TODO: Laser → Littrow Grating/SHG → AOM → Beam Expander → Top-Hat DOE → AOD x 2 → Ions/Sample, for gate ops
+TODO: Path: Laser → Littrow/SHG → Optical Amplifier (~2–5 W) → AOM (~100–200 ns) → Beam Expander (~9.3 mm) → 32x32 Multi-Spot DOE (~1,024 beams) → High-NA Lens (~5–10 µm spots) → AODs x 2 (~0.5–1 µs steering) → Ions.
 
-TODO: Laser → Littrow Grating/SHG → AOM → Beam Expander → Top-Hat DOE → Ions/Sample for  resonani ionization
+TODO: Laser → Littrow Grating/SHG → AOM → Beam Expander (~5 mm) → Top-Hat DOE → Ions/Sample for  resonani ionization
+
+
+Top-Hat DOE:
+    PT-064-S-Y-A
 
 
 Home made beam expander:
