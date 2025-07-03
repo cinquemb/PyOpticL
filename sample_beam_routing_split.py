@@ -74,6 +74,13 @@ Home made beam expander:
 - **Magnification:** $$\frac{f_2}{f_1}$$
 - **Advantage:** Can include a spatial filter at the focus for beam cleanup.
 
+
+for each  AOM/AOD. need:
+    -  **VCO / RF Signal Source** 
+    - **RF Power Amplifier**
+    -  **DC Linear Regulator**
+
+    -  7 AOM's + 2 AOD's
 '''
 
 # Mount hole coordinates (updated for 12x12 inch baseplate)
