@@ -83,8 +83,8 @@ pellet_chamber_height = 30
 
 plate_thickness = 1.5
 visual_liquid_thickness = 1.0
-plate_length = 440
-plate_width = 440
+plate_length = 5
+plate_width = 5
 guide_length = 200
 guide_width = 30
 guide_height = 10
